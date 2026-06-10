@@ -8,8 +8,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json t
 COPY lib/ ./lib/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
-RUN echo "dangerouslyAllowAllBuilds=true" >> .npmrc
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 RUN pnpm --filter @workspace/api-server run build
 
 FROM node:22-slim AS runner
