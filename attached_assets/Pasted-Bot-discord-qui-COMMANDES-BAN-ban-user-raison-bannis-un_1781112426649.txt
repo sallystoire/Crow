@@ -1,0 +1,130 @@
+Bot discord qui:
+
+[COMMANDES BAN]
+.ban @user raison - bannis un membre du serveur et renvoi un message vous avez banni @user du serveur pour raison (Réservé aux membres de la owner list)
+
+.unban @user - enlève le bannissement d’un membre du serveur (Réservé aux membres de la owner list)
+
+.kick @user raison - kick un membre du serveur et renvoi un message vous avez kick @user du serveur pour raison 
+
+.bl @user raison - blacklist une personne du serveur c’est plus haut qu’un bannissement c’est ip et renvoi un message vous avez blacklist @user du serveur pour raison (Réservé aux membres de la owner list)
+
+.unbl @user révoque le blacklist (Réservé aux membres de la owner list)
+
+.banlist - voir la list de tout les ban avec identifiant + pseudo + raison (Réservé aux membres de la wl list)
+
+.bllist - voir la liste de tout les bl avec identifiant + pseudo + raison (Réservé aux membres de la wl list)
+
+.clearban - enlever tt les ban (Réservé aux membres de la owner list)
+.clearbl - enlever tt les bl (Réservé aux membres de la owner list)
+
+Pour les ban et bl il faut pas qu’on puisse se le faire sur nous même 
+
+[COMMANDES SNIPES]
+.snipe nombre - révèle le nombre de derniers messages qui ont été supprimés et qui a envoyé ces messages. Ex: .snipe 2 révèle les deux derniers messages envoyés et ça jusqu’à 3 max.
+
+.snipe @user - voir les 5 derniers messages d’un utilisateur.
+
+.hideme - en gros si un utilisateur fait la commande .snipe et .snipe @user tu n’apparaît pas dans l’embed.
+
+[COMMANDE PROFILE]
+.pic @user - voir la photo de profil de quelqu’un 
+
+.banner @user - voir la bannière de quelqu’un 
+
+[COMMNDES SALONS]
+.lock #salon - bloquer la permission de parler dans un salon
+
+.unlock #salon - enlever le bloquage de parler dans un salon
+
+.slowmode temps_en_secondes - met un cooldown dans le salon où est exécutée la commande.
+
+.sondage (text) [propo 1, propo 2…propo10 (le max des propositions que tu peux mettre] ex .sondage (vous préférez ?) [sally, Furaxx] le bot envoi un embed avec comme titre le (text) et description [propositions] et des réactions des chiffres allant de 1 à 10 selon le nombre de propositions. 
+
+[COMMANDE RÔLES]
+.editrole @user - envoi un panel embed et tu peux ajouter ou enlever un rôle à qlq 
+
+.editpack - envoi un embed et tu peux créer des paquets ex  pack 1: @star @jolie @cute et je choisi que le rôle @losange peut donner seulement ces rôles la lorsqu’il fait .editrole @user (Réservé aux membres de la owner list)
+
+.idroles - affiche les identifiants de tout les rôles du serveur (Réservé aux membres de la wl list)
+
+.addsecure @role - tu peux ajouter un rôle dans la liste secure et le but c’est ceux qui sont pas dans la wlsecure ne peuvent pas ajouter le rôle dans la secure role list à qui que ce soit. (Réservé aux membres de la owner list)
+
+.delsecure @role - enlever un rôle de la secure list (Réservé aux membres de la owner list)
+
+.derank @user - enleve tout les rôles d’un membre - renvoi un message @user a été derank (Réservé aux membres de la owner list)
+
+[COMMANDES MUTE]
+.setupmute permet de régler tout le système de mute: envoi un embed avec un sélecteur et je choisi: le salon où sera pris en compte la commande pour mute, définir le temps de tempmute max, définir les niveaux qui peuvent tempmute/unmute/mutelist/unmuteall, ex: Niveau 1: tempmute - @etoile @triangle @cercle, Niveau 2: tempmute et unmute - @poisson @dauphin @requin etc.. et tout ceux qui ont la perm de .tempmute ne peuvent pas se mute entre eux. Ex: une @étoile ne peut pas tempmute un @requin.
+ (Réservé aux membres de la owner list)
+
+.tempmute @user durée raison - mute la personne temporairement pendant x minute 
+
+.unmute @user - unmute un membre
+
+.mutelist - voir la liste de tout les gens mute 
+(Réservé aux membres de la wl list)
+
+.unmuteall - enlever le mute a tout les gens mute (Réservé aux membres de la owner list)
+
+[COMMANDES VOCALE]
+
+.setvoice - envoi un embed dans un salon que tu peux choisir  + un salon vocal où quand tu rejoint ça créer ta vocal, et ensuite un embed dans un salon quon a choisi qui bouge pas avec des sélecteurs ou tu peux transférer la propriété de la vocal à quelqu’un, tu peux modifier le nom de la vocal, privatiser ou la rendre publique, ajouter des amis (ceux qui peuvent rejoindre la vocal quand elle est en private), changer la capacités de membres max et dès qu’il n’y a plus personne la vocal est supprimé.
+(Réservé aux membres de la owner list)
+
+.vc -  nombre de personne en vocal avec le nombre de personne mute, mute casque, en stream, en cam (Réservé aux membres de la owner list)
+
+.join @user - se déplacer dans la vocal d’un membre et renvoie un message: vous avez rejoint la vocal x avec @user et renvoi un message (Réservé aux membres de la wl list)
+
+.move @user - déplacer un membre dans sa vocal et renvoi un message (Réservé aux membres de la wl list)
+
+.antimove @user -  tout les gens dans cette liste ne pourront pas être déplacé par n’importe qui en gros si  (Réservé aux membres de la owner list)
+
+.antimove del @user - enlève quelque un de la antimove list (Réservé aux membres de la owner list)
+
+.antimove list - voir la liste (Réservé aux membres de la wl list)
+
+.followuser @user - dès que le membre mentionné va dans une vocal le bot déplace celui qui a fait la commande automatiquement dans la vocal. La commande renvoi un embed et un bouton activer ou désactiver.
+Mais la personne doit accepter ou non d’être suivi donc le bot lui envoie un message privé et il doit accepter ou non il a 1m pour le faire. Et dés que c’est bon le bot renvoi la réponse. (Réservé aux membres de la wl list)
+ 
+.followuser list - renvoi la liste de tout les utilisateurs qui se font suivre et par qui. (Réservé aux membres de la wl list)
+
+.antideco nombre -  en gros au bout du nombre de déconnexion fait tu perds tout tes rôles sur le serveur. (Réservé aux membres de la owner list)
+
+[ne s’appliquent pas aux voc tempo perso]
+.pv - rendre privé une vocal où tu te trouve et personne ne peut rejoindre (Réservé aux membres de la wl list) 
+.access @user - donner l’accès à qlq de rejoindre la vocal private (Réservé aux membres de la wl list)
+.unpv - ne plus rendre privé la vocal où tu te trouve (Réservé aux membres de la wl list)
+.unpvall - ne plus rendre privé toutes les vocal privées du serveur (Réservé aux membres de la owner list)
+
+[COMMANDE LINK]
+.antilink #salon - bloquer les liens dans un salon (Réservé aux membres de la owner list)
+.allowlink @role - permettre à un rôle d’envoyer des liens dans un salon même s’il est antilink. (Réservé aux membres de la owner list)
+
+[COMMANDE MESSAGES/EMOJI]
+.clear @user - clear tout les messages dun membre dans un salon 
+.clear nombre - supprimer le nombre de message dans un salon (Réservé aux membres de la owner list)
+.renew renouvelle le salon le recréer a nouveau mais garde la même perm qu’elle avait et tout. (Réservé aux membres de la owner list)
+.emoji emoji nom - créer un emoji dans le serveur (Réservé aux membres de la wl list)
+
+[SETTINGS]
+.set @role perm - configurer les accès de tout le bot: ex .set @star clear permet au rôle star de faire la commande « .clear » (Réservé aux membres de la owner list)
+
+.set off @role perm - enlever la possibilité de faire une commande, ex: .set off @star clear enlève la possibilité au rôle star de faire la commande « .clear ». (Réservé aux membres de la owner list)
+
+.perms - affiche la liste de ce que chaque rôle peut faire dans le serveur y compris le réglage de .setupmute (Réservé aux membres de la owner list)
+
+.alertroles @role1 @role2 - dans le salon où est effectuée la commande sera envoyé un message d’alerte qui mentionne @role1 en alertant que le @role2 a été mit à un autre utilisateur @pseudo + (id) par l’utilisateur @mention + (id) (Réservé aux membres de la owner list)
+
+.owner add @user - ajouter à la owner list un utilisateur (.owner del pour supprimer)
+
+.wl add @user - ajouter à la wl list un utilisateur (.wl del pour supprimer) (Réservé aux membres de la owner list)
+
+.stats @role - affiche la liste des utilisateurs en vocal ou non qui ont le rôle mentionné. Et en dessous un bouton alerte et quand je clique le bot mentionne la personne en lui disant: « il faut aller en vocal ou tu perdra tes rôles. » (Réservé aux membres de la owner list)
+
+.automate - envoi un embed avec sélecteur et tu choisi la phrase ex: « Salut » et le message du bot: « Coucou ça va bien ? » et donc quand le membre enverra le mot Salut le bot répondra à son message « Coucou ça va bien ? » (Réservé aux membres de la owner list) dans le sélecteur ajouter supprimer un automate 
+
+Dans le script je veux que tu mette cet identifiant comme utilisateur sys: 989611084073799731 et cet utilisateur seul peut ajouter/supprimer des gens dans la .owner aussi 
+
+Indication:
+Ce que peut faire les wl list, les owner list le peuvent aussi.
