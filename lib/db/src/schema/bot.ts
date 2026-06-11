@@ -186,5 +186,7 @@ export const botGuildConfigs = pgTable("bot_guild_configs", {
   voicePanelChannelId: varchar("voice_panel_channel_id", { length: 20 }),
   voicePanelMessageId: varchar("voice_panel_message_id", { length: 20 }),
   antiDecoLimit: text("anti_deco_limit"),
+  alertEditRoleChannelId: varchar("alert_edit_role_channel_id", { length: 20 }),
+  alertEditRoleMentionId: varchar("alert_edit_role_mention_id", { length: 20 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

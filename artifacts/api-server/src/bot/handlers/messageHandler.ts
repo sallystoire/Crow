@@ -8,7 +8,7 @@ import {
   handleOwner, handleOwnerList,
   handleWl, handleWList,
   handleWlSecure, handleWlSecureList,
-  handleStats, handleAlertRoles, handleAlertRoleList,
+  handleStats, handleAlertRoles, handleAlertRoleList, handleAlertEditRole,
 } from "../commands/settings/index.js";
 import { handleIdRoles, handleAddSecure, handleDelSecure, handleSecureList } from "../commands/roles/index.js";
 
@@ -55,6 +55,7 @@ export async function handleMessage(msg: Message): Promise<void> {
     case "stats": await handleStats(msg); break;
     case "alertroles": await handleAlertRoles(msg); break;
     case "alertrolelist": await handleAlertRoleList(msg); break;
+    case "alerteditrole": await handleAlertEditRole(msg); break;
 
     // HELP
     case "help": await handleHelp(msg); break;
@@ -74,7 +75,7 @@ async function handleHelp(msg: Message): Promise<void> {
       { name: "🎭 Rôles", value: "`&idroles` `&addsecure @role` `&delsecure @role` `&securelist`", inline: false },
       { name: "🎙️ Vocal", value: "`&join @user` `&move @user` `&pv` `&pvlist` `&access @user` `&unpv` `&unpvall` `&wakeup @user`", inline: false },
       { name: "💬 Messages", value: "`&ping @user` `&sondage`", inline: false },
-      { name: "⚙️ Settings", value: "`&owner add/del` `&ownerlist`\n`&wl add/del` `&wlist`\n`&wlsecure add/del` `&wlsecurelist`\n`&stats @role` `&alertroles @trigger @mention` `&alertrolelist`", inline: false },
+      { name: "⚙️ Settings", value: "`&owner add/del` `&ownerlist`\n`&wl add/del` `&wlist`\n`&wlsecure add/del` `&wlsecurelist`\n`&stats @role`\n`&alertroles @trigger @mention` `&alertrolelist`\n`&alerteditrole @mention #salon`", inline: false },
     )
     .setFooter({ text: "Préfixe: &" })
     .setTimestamp();

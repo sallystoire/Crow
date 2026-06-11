@@ -108,6 +108,7 @@ export interface GuildStore {
   userSnipedMessages: Map<string, SnipedMessage[]>;
   customPerms: Map<string, Set<string>>;
   alertRoles: Map<string, AlertRoleEntry>;
+  alertEditRole?: { channelId: string; mentionRoleId: string };
 }
 
 const stores = new Map<string, GuildStore>();

@@ -4,6 +4,7 @@ import {
   Partials,
   VoiceState,
   GuildMember,
+  Role,
   AuditLogEvent,
   EmbedBuilder,
   ActionRowBuilder,
@@ -95,6 +96,63 @@ export function startBot(): void {
       }
     } catch (err) {
       logger.error({ err }, "Error handling voiceStateUpdate");
+    }
+  });
+
+  client.on("guildRoleCreate", async (role: Role) => {
+    try {
+      const store = getGuildStore(role.guild.id);
+
+      // Find who created the role via audit log
+      let executorId: string | null = null;
+      try {
+        const auditLogs = await role.guild.fetchAuditLogs({ type: AuditLogEvent.RoleCreate, limit: 3 });
+        const entry = auditLogs.entries.find(
+          (e) => (e.target as any)?.id === role.id && Date.now() - e.createdTimestamp < 8000
+        );
+        executorId = entry?.executor?.id ?? null;
+      } catch {}
+
+      // Ignore if executor is bot itself, an owner, or the guild owner
+      if (!executorId) return;
+      const isAllowed =
+        executorId === client.user?.id ||
+        store.ownerList.has(executorId) ||
+        executorId === role.guild.ownerId;
+      if (isAllowed) return;
+
+      // Not allowed → delete the role
+      await role.delete("Création de rôle non autorisée").catch(() => {});
+
+      // Send alert if configured
+      if (!store.alertEditRole) return;
+      const alertChannel = role.guild.channels.cache.get(store.alertEditRole.channelId);
+      if (!alertChannel?.isTextBased()) return;
+
+      const alertEmbed = new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle("⚠️ Création de rôle bloquée")
+        .setDescription(
+          `<@${executorId}> a essayé de créer un rôle mais je l'ai supprimé.\n\nClique sur le bouton ci-dessous pour lui retirer tous ses rôles.`
+        )
+        .setTimestamp();
+
+      const derankRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`alert_derank_${executorId}`)
+          .setLabel("🗑️ Retirer tous les rôles")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      const alertMsg = await (alertChannel as any)
+        .send({ content: `<@&${store.alertEditRole.mentionRoleId}>`, embeds: [alertEmbed], components: [derankRow] })
+        .catch(() => null);
+
+      if (alertMsg) {
+        setupDerankCollector(alertMsg, executorId, executorId, role.guild, alertEmbed);
+      }
+    } catch (err) {
+      logger.error({ err }, "Error handling guildRoleCreate");
     }
   });
 

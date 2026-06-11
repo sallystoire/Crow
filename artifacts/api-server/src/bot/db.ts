@@ -135,6 +135,9 @@ export async function loadGuildFromDb(guildId: string): Promise<void> {
         panelMessageId: cfg.voicePanelMessageId ?? undefined,
       };
       if (cfg.antiDecoLimit) store.antiDecoLimit = parseInt(cfg.antiDecoLimit);
+      if (cfg.alertEditRoleChannelId && cfg.alertEditRoleMentionId) {
+        store.alertEditRole = { channelId: cfg.alertEditRoleChannelId, mentionRoleId: cfg.alertEditRoleMentionId };
+      }
     }
 
     logger.info({ guildId }, "Guild data loaded from DB");
@@ -323,6 +326,8 @@ export async function dbSaveGuildConfig(guildId: string, store: GuildStore): Pro
     voicePanelChannelId: store.voiceConfig.panelChannelId ?? null,
     voicePanelMessageId: store.voiceConfig.panelMessageId ?? null,
     antiDecoLimit: store.antiDecoLimit != null ? String(store.antiDecoLimit) : null,
+    alertEditRoleChannelId: store.alertEditRole?.channelId ?? null,
+    alertEditRoleMentionId: store.alertEditRole?.mentionRoleId ?? null,
     updatedAt: new Date(),
   };
   await db.insert(botGuildConfigs).values(values)

@@ -14,6 +14,7 @@ import {
   dbAddWl, dbRemoveWl,
   dbSaveAlertRole,
   dbAddWlSecure, dbRemoveWlSecure,
+  dbSaveGuildConfig,
 } from "../../db.js";
 
 // ─── OWNER ────────────────────────────────────────────────────────────────────
@@ -226,6 +227,25 @@ export async function handleAlertRoles(msg: Message): Promise<void> {
   await dbSaveAlertRole(msg.guild.id, triggerRole.id, msg.channel.id, mentionRole.id);
 
   await msg.reply(`<@&${triggerRole.id}> a été ajouté à l'alerte.`);
+}
+
+export async function handleAlertEditRole(msg: Message): Promise<void> {
+  if (!(await requireOwner(msg))) return;
+  if (!msg.guild) return;
+
+  const mentionRole = msg.mentions.roles.first();
+  const channel = msg.mentions.channels.first();
+
+  if (!mentionRole || !channel) {
+    await msg.reply("**Format: `&alerteditrole @role #salon`**\nQuand quelqu'un crée un rôle sans autorisation, une alerte sera envoyée dans ce salon.");
+    return;
+  }
+
+  const store = getGuildStore(msg.guild.id);
+  store.alertEditRole = { channelId: channel.id, mentionRoleId: mentionRole.id };
+  await dbSaveGuildConfig(msg.guild.id, store);
+
+  await msg.reply(`✅ Alerte création de rôle configurée : <@&${mentionRole.id}> sera mentionné dans <#${channel.id}>.`);
 }
 
 export async function handleAlertRoleList(msg: Message): Promise<void> {
