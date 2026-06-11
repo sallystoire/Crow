@@ -122,7 +122,7 @@ export async function handleEditRole(msg: Message): Promise<void> {
                   .setLabel("🗑️ Derank")
                   .setStyle(ButtonStyle.Danger)
               );
-              const alertMsg = await (ch as any).send({ embeds: [alertEmbed], components: [derankRow] }).catch(() => null);
+              const alertMsg = await (ch as any).send({ content: `<@&${alert.mentionRoleId}>`, embeds: [alertEmbed], components: [derankRow] }).catch(() => null);
               if (alertMsg) {
                 setupDerankCollector(alertMsg, target.id, target.user.tag, msg.guild!, alertEmbed);
               }

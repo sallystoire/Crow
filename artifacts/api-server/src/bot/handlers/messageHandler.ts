@@ -1,64 +1,22 @@
 import { Message } from "discord.js";
 import { getGuildStore } from "../store.js";
-import { checkAntiLink } from "../commands/link/index.js";
-import { recordDeletedMessage } from "../commands/snipe/index.js";
 
+import { handleHideMe, handleUnhideMe } from "../commands/snipe/index.js";
+import { handleJoinVoice, handleMove, handlePv, handlePvList, handleAccess, handleUnpv, handleUnpvAll, handleWakeUp } from "../commands/voice/index.js";
+import { handlePing } from "../commands/messages/index.js";
+import { handleSondage } from "../commands/channels/index.js";
 import {
-  handleBan, handleUnban, handleKick, handleBlacklist, handleUnbl,
-  handleBanList, handleBlList, handleClearBan, handleClearBl,
-} from "../commands/ban/index.js";
-
-import { handleSnipe, handleHideMe, handleUnhideMe } from "../commands/snipe/index.js";
-import { handlePic, handleBanner } from "../commands/profile/index.js";
-
-import {
-  handleLock, handleUnlock, handleSlowmode, handleSondage, handleRenew,
-} from "../commands/channels/index.js";
-
-import {
-  handleEditRole, handleEditPack, handleIdRoles,
-  handleAddSecure, handleDelSecure, handleDerank, handleSecureList,
-} from "../commands/roles/index.js";
-
-import {
-  handleSetupMuteParam, handleTempMute, handleUnmute, handleMuteList, handleUnmuteAll,
-} from "../commands/mute/index.js";
-
-import {
-  handleVc, handleJoinVoice, handleMove, handleAntiDeco,
-  handlePv, handlePvList, handleAccess, handleUnpv, handleUnpvAll, handleWakeUp,
-} from "../commands/voice/index.js";
-
-import { handleClear, handleEmoji, handlePing } from "../commands/messages/index.js";
-
-import {
-  handleSet, handlePerms, handleOwner, handleOwnerList,
-  handleWl, handleWList, handleWlSecure,
-  handleStats, handleAlertRoles, handleAlertRoleList, handleAutomate,
+  handleOwner, handleOwnerList,
+  handleWl, handleWList,
+  handleWlSecure, handleWlSecureList,
+  handleStats, handleAlertRoles, handleAlertRoleList,
 } from "../commands/settings/index.js";
+import { handleIdRoles, handleAddSecure, handleDelSecure, handleSecureList, handleDerank } from "../commands/roles/index.js";
 
 const PREFIX = "&";
 
 export async function handleMessage(msg: Message): Promise<void> {
   if (!msg.guild || msg.author.bot) return;
-
-  const store = getGuildStore(msg.guild.id);
-
-  const content = msg.content.toLowerCase().trim();
-  for (const automate of store.automateList) {
-    if (content === automate.trigger || content.includes(automate.trigger)) {
-      await msg.reply(automate.response).catch(() => {});
-      break;
-    }
-  }
-
-  if (checkAntiLink(msg)) {
-    await msg.delete().catch(() => {});
-    await msg.channel
-      .send(`<@${msg.author.id}> Les liens sont interdits dans ce salon.`)
-      .then((m) => setTimeout(() => m.delete().catch(() => {}), 5000));
-    return;
-  }
 
   if (!msg.content.startsWith(PREFIX)) return;
 
@@ -66,55 +24,20 @@ export async function handleMessage(msg: Message): Promise<void> {
   const command = args.shift()!.toLowerCase();
 
   switch (command) {
-    // BAN
-    case "ban": await handleBan(msg, args); break;
-    case "unban": await handleUnban(msg, args); break;
-    case "kick": await handleKick(msg, args); break;
-    case "bl": await handleBlacklist(msg, args); break;
-    case "unbl": await handleUnbl(msg, args); break;
-    case "banlist": await handleBanList(msg); break;
-    case "bllist": await handleBlList(msg); break;
-    case "clearban": await handleClearBan(msg); break;
-    case "clearbl":
-    case "blclear": await handleClearBl(msg); break;
-
-    // SNIPE
-    case "snipe": await handleSnipe(msg, args); break;
+    // SNIPE / HIDE
     case "hideme": await handleHideMe(msg); break;
     case "unhideme": await handleUnhideMe(msg); break;
 
-    // PROFILE
-    case "pic": await handlePic(msg); break;
-    case "banner": await handleBanner(msg); break;
-
-    // CHANNELS
-    case "lock": await handleLock(msg, args); break;
-    case "unlock": await handleUnlock(msg, args); break;
-    case "slowmode": await handleSlowmode(msg, args); break;
-    case "sondage": await handleSondage(msg, args); break;
-    case "renew": await handleRenew(msg); break;
-
     // ROLES
-    case "editrole": await handleEditRole(msg); break;
-    case "editpack": await handleEditPack(msg, args); break;
     case "idroles": await handleIdRoles(msg); break;
     case "addsecure": await handleAddSecure(msg); break;
     case "delsecure": await handleDelSecure(msg); break;
     case "securelist": await handleSecureList(msg); break;
     case "derank": await handleDerank(msg); break;
 
-    // MUTE
-    case "setupmute": await handleSetupMuteParam(msg, args); break;
-    case "tempmute": await handleTempMute(msg, args); break;
-    case "unmute": await handleUnmute(msg); break;
-    case "mutelist": await handleMuteList(msg); break;
-    case "unmuteall": await handleUnmuteAll(msg); break;
-
     // VOICE
-    case "vc": await handleVc(msg); break;
     case "join": await handleJoinVoice(msg); break;
     case "move": await handleMove(msg); break;
-    case "antideco": await handleAntiDeco(msg, args); break;
     case "pv": await handlePv(msg); break;
     case "pvlist": await handlePvList(msg); break;
     case "access": await handleAccess(msg); break;
@@ -123,32 +46,29 @@ export async function handleMessage(msg: Message): Promise<void> {
     case "wakeup": await handleWakeUp(msg); break;
 
     // MESSAGES
-    case "clear": await handleClear(msg, args); break;
-    case "emoji": await handleEmoji(msg, args); break;
     case "ping": await handlePing(msg); break;
 
+    // CHANNELS
+    case "sondage": await handleSondage(msg, args); break;
+
     // SETTINGS
-    case "set": await handleSet(msg, args); break;
-    case "perms": await handlePerms(msg); break;
     case "owner": await handleOwner(msg, args); break;
     case "ownerlist": await handleOwnerList(msg); break;
     case "wl": await handleWl(msg, args); break;
     case "wlist": await handleWList(msg); break;
     case "wlsecure": await handleWlSecure(msg, args); break;
+    case "wlsecurelist": await handleWlSecureList(msg); break;
     case "stats": await handleStats(msg); break;
     case "alertroles": await handleAlertRoles(msg); break;
     case "alertrolelist": await handleAlertRoleList(msg); break;
-    case "automate": await handleAutomate(msg, args); break;
 
     // HELP
     case "help": await handleHelp(msg); break;
   }
 }
 
-export function handleMessageDelete(msg: Message): void {
-  if (!msg.guild || msg.author.bot) return;
-  recordDeletedMessage(msg.guild.id, msg);
-}
+// handleMessageDelete kept minimal (no snipe recording)
+export function handleMessageDelete(_msg: Message): void {}
 
 async function handleHelp(msg: Message): Promise<void> {
   const { EmbedBuilder } = await import("discord.js");
@@ -157,15 +77,11 @@ async function handleHelp(msg: Message): Promise<void> {
     .setColor(0x9b59b6)
     .setTitle("📖 Aide — Commandes du Bot")
     .addFields(
-      { name: "🔨 Ban", value: "`&ban` `&unban` `&kick` `&bl` `&unbl` `&banlist` `&bllist` `&clearban` `&clearbl`", inline: false },
-      { name: "🔍 Snipe", value: "`&snipe [n]` `&snipe @user` `&hideme` `&unhideme`", inline: false },
-      { name: "🖼️ Profil", value: "`&pic [@user]` `&banner [@user]`", inline: false },
-      { name: "🏠 Salons", value: "`&lock` `&unlock` `&slowmode` `&sondage` `&renew`", inline: false },
-      { name: "🎭 Rôles", value: "`&editrole @user` `&editpack` `&idroles` `&addsecure @role` `&delsecure @role` `&securelist` `&derank @user`", inline: false },
-      { name: "🔇 Mute", value: "`&setupmute` `&tempmute @user [durée]` `&unmute @user` `&mutelist` `&unmuteall`", inline: false },
-      { name: "🎙️ Vocal", value: "`&vc` `&join @user` `&move @user` `&antideco N` `&pv` `&pvlist` `&access @user` `&unpv` `&unpvall` `&wakeup @user`", inline: false },
-      { name: "🗑️ Messages", value: "`&clear [n]` `&emoji` `&ping @user`", inline: false },
-      { name: "⚙️ Settings", value: "`&set` `&perms` `&owner add/del` `&ownerlist` `&wl add/del` `&wlist` `&wlsecure add/del` `&stats @role` `&alertroles @trigger @mention` `&alertrolelist` `&automate`", inline: false },
+      { name: "👁️ Visibilité", value: "`&hideme` `&unhideme`", inline: false },
+      { name: "🎭 Rôles", value: "`&idroles` `&addsecure @role` `&delsecure @role` `&securelist` `&derank @user`", inline: false },
+      { name: "🎙️ Vocal", value: "`&join @user` `&move @user` `&pv` `&pvlist` `&access @user` `&unpv` `&unpvall` `&wakeup @user`", inline: false },
+      { name: "💬 Messages", value: "`&ping @user` `&sondage`", inline: false },
+      { name: "⚙️ Settings", value: "`&owner add/del` `&ownerlist`\n`&wl add/del` `&wlist`\n`&wlsecure add/del` `&wlsecurelist`\n`&stats @role` `&alertroles @trigger @mention` `&alertrolelist`", inline: false },
     )
     .setFooter({ text: "Préfixe: &" })
     .setTimestamp();

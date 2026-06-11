@@ -7,53 +7,16 @@ import {
   ComponentType,
 } from "discord.js";
 import { getGuildStore, SYS_USER_ID } from "../../store.js";
-import { requireOwner, requireWL, isOwner, isSysUser } from "../../utils/permissions.js";
-import { successEmbed, errorEmbed, listEmbed, infoEmbed } from "../../utils/embeds.js";
+import { requireOwner, isSysUser } from "../../utils/permissions.js";
+import { errorEmbed } from "../../utils/embeds.js";
 import {
   dbAddOwner, dbRemoveOwner,
   dbAddWl, dbRemoveWl,
-  dbSaveCustomPerms,
-  dbAddAutomate, dbRemoveAutomate,
   dbSaveAlertRole,
   dbAddWlSecure, dbRemoveWlSecure,
 } from "../../db.js";
 
-export async function handleSet(msg: Message, args: string[]): Promise<void> {
-  if (!(await requireOwner(msg))) return;
-  if (!msg.guild) return;
-  const store = getGuildStore(msg.guild.id);
-
-  if (args[0] === "off") {
-    const role = msg.mentions.roles.first();
-    const perm = args[2] ?? args[args.length - 1];
-    if (!role || !perm) { await msg.reply({ embeds: [errorEmbed("Format: `&set off @role perm`")] }); return; }
-    const rolePerms = store.customPerms.get(role.id);
-    if (rolePerms) rolePerms.delete(perm);
-    await dbSaveCustomPerms(msg.guild.id, role.id, rolePerms ?? new Set());
-    await msg.reply({ embeds: [successEmbed(`Permission \`${perm}\` retirée de <@&${role.id}>.`)] });
-    return;
-  }
-
-  const role = msg.mentions.roles.first();
-  const perm = args[1] ?? args[args.length - 1];
-  if (!role || !perm) { await msg.reply({ embeds: [errorEmbed("Format: `&set @role perm`")] }); return; }
-
-  if (!store.customPerms.has(role.id)) store.customPerms.set(role.id, new Set());
-  store.customPerms.get(role.id)!.add(perm);
-  await dbSaveCustomPerms(msg.guild.id, role.id, store.customPerms.get(role.id)!);
-  await msg.reply({ embeds: [successEmbed(`Permission \`${perm}\` accordée à <@&${role.id}>.`)] });
-}
-
-export async function handlePerms(msg: Message): Promise<void> {
-  if (!(await requireOwner(msg))) return;
-  if (!msg.guild) return;
-  const store = getGuildStore(msg.guild.id);
-  const lines: string[] = [];
-  for (const [roleId, perms] of store.customPerms) {
-    if (perms.size > 0) lines.push(`<@&${roleId}>: ${Array.from(perms).map((p) => `\`${p}\``).join(", ")}`);
-  }
-  await msg.reply({ embeds: [listEmbed("⚙️ Permissions personnalisées", lines, 0x34495e)] });
-}
+// ─── OWNER ────────────────────────────────────────────────────────────────────
 
 export async function handleOwner(msg: Message, args: string[]): Promise<void> {
   if (!msg.guild) return;
@@ -61,11 +24,15 @@ export async function handleOwner(msg: Message, args: string[]): Promise<void> {
   const action = args[0];
   const targetUser = msg.mentions.users.first();
 
-  if (!action || !targetUser) { await msg.reply("**Format: `&owner add @user` ou `&owner del @user`**"); return; }
+  if (!action || !targetUser) {
+    await msg.reply("**Format: `&owner add @user` ou `&owner del @user`**");
+    return;
+  }
 
   if (action === "add") {
     if (!isSysUser(msg.author.id) && msg.author.id !== msg.guild.ownerId) {
-      await msg.reply("**Seul l'utilisateur système peut ajouter à la owner list.**"); return;
+      await msg.reply("**Seul l'utilisateur système peut ajouter à la owner list.**");
+      return;
     }
     store.ownerList.add(targetUser.id);
     await dbAddOwner(msg.guild.id, targetUser.id);
@@ -75,7 +42,8 @@ export async function handleOwner(msg: Message, args: string[]): Promise<void> {
 
   if (action === "del") {
     if (!isSysUser(msg.author.id) && msg.author.id !== msg.guild.ownerId) {
-      await msg.reply("**Seul l'utilisateur système peut retirer de la owner list.**"); return;
+      await msg.reply("**Seul l'utilisateur système peut retirer de la owner list.**");
+      return;
     }
     store.ownerList.delete(targetUser.id);
     await dbRemoveOwner(msg.guild.id, targetUser.id);
@@ -101,6 +69,8 @@ export async function handleOwnerList(msg: Message): Promise<void> {
   await msg.reply({ embeds: [embed] });
 }
 
+// ─── WL ───────────────────────────────────────────────────────────────────────
+
 export async function handleWl(msg: Message, args: string[]): Promise<void> {
   if (!(await requireOwner(msg))) return;
   if (!msg.guild) return;
@@ -108,7 +78,10 @@ export async function handleWl(msg: Message, args: string[]): Promise<void> {
   const action = args[0];
   const targetUser = msg.mentions.users.first();
 
-  if (!action || !targetUser) { await msg.reply("**Format: `&wl add @user` ou `&wl del @user`**"); return; }
+  if (!action || !targetUser) {
+    await msg.reply("**Format: `&wl add @user` ou `&wl del @user`**");
+    return;
+  }
 
   if (action === "add") {
     store.wlList.add(targetUser.id);
@@ -141,6 +114,8 @@ export async function handleWList(msg: Message): Promise<void> {
   await msg.reply({ embeds: [embed] });
 }
 
+// ─── WL SECURE ────────────────────────────────────────────────────────────────
+
 export async function handleWlSecure(msg: Message, args: string[]): Promise<void> {
   if (!(await requireOwner(msg))) return;
   if (!msg.guild) return;
@@ -168,6 +143,23 @@ export async function handleWlSecure(msg: Message, args: string[]): Promise<void
 
   await msg.reply("**Action inconnue. Utilise `add` ou `del`.**");
 }
+
+export async function handleWlSecureList(msg: Message): Promise<void> {
+  if (!(await requireOwner(msg))) return;
+  if (!msg.guild) return;
+  const store = getGuildStore(msg.guild.id);
+
+  const entries = Array.from(store.wlSecure).map((id) => `<@${id}>`);
+  const embed = new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle("🔐 WL Secure")
+    .setDescription(entries.length > 0 ? entries.join("\n") : "*Aucun membre dans la wlsecure*")
+    .setTimestamp();
+
+  await msg.reply({ embeds: [embed] });
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
 
 export async function handleStats(msg: Message): Promise<void> {
   if (!(await requireOwner(msg))) return;
@@ -216,13 +208,15 @@ export async function handleStats(msg: Message): Promise<void> {
   collector.on("end", () => { replyMsg.edit({ components: [] }).catch(() => {}); });
 }
 
+// ─── ALERT ROLES ─────────────────────────────────────────────────────────────
+
 export async function handleAlertRoles(msg: Message): Promise<void> {
   if (!(await requireOwner(msg))) return;
   if (!msg.guild) return;
 
   const roles = Array.from(msg.mentions.roles.values());
   if (roles.length < 2) {
-    await msg.reply("**Format: `&alertroles @roleDéclencheur @roleMentionné`**\nQuand le rôle déclencheur est ajouté à un membre, le rôle mentionné sera notifié.");
+    await msg.reply("**Format: `&alertroles @roleDéclencheur @roleMentionné`**");
     return;
   }
 
@@ -240,69 +234,21 @@ export async function handleAlertRoleList(msg: Message): Promise<void> {
   const store = getGuildStore(msg.guild.id);
 
   if (store.alertRoles.size === 0) {
-    await msg.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("🔔 Alertes de rôles").setDescription("*Aucune alerte configurée*").setTimestamp()] });
+    await msg.reply({
+      embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("🔔 Alertes de rôles").setDescription("*Aucune alerte configurée*").setTimestamp()],
+    });
     return;
   }
 
   const lines = Array.from(store.alertRoles.entries()).map(([watchRoleId, alert]) => {
-    const watchRole = msg.guild!.roles.cache.get(watchRoleId);
-    const mentionRole = msg.guild!.roles.cache.get(alert.mentionRoleId);
     const channel = msg.guild!.channels.cache.get(alert.channelId);
-    return `<@&${watchRoleId}> (**${watchRole?.name ?? watchRoleId}**) → notifie <@&${alert.mentionRoleId}> (**${mentionRole?.name ?? alert.mentionRoleId}**) dans ${channel ? `<#${alert.channelId}>` : `\`${alert.channelId}\``}`;
+    return `<@&${watchRoleId}> → notifie <@&${alert.mentionRoleId}> dans ${channel ? `<#${alert.channelId}>` : `\`${alert.channelId}\``}`;
   });
 
   const embed = new EmbedBuilder()
     .setColor(0xe67e22)
     .setTitle("🔔 Alertes de rôles configurées")
     .setDescription(lines.join("\n"))
-    .setTimestamp();
-
-  await msg.reply({ embeds: [embed] });
-}
-
-export async function handleAutomate(msg: Message, args: string[]): Promise<void> {
-  if (!(await requireOwner(msg))) return;
-  if (!msg.guild) return;
-
-  const store = getGuildStore(msg.guild.id);
-  const fullText = args.join(" ");
-
-  const addMatch = fullText.match(/^add\s+"(.+?)"\s+"(.+)"$/i);
-  if (addMatch) {
-    const trigger = addMatch[1]!.toLowerCase();
-    const response = addMatch[2]!;
-    store.automateList.push({ trigger, response });
-    await dbAddAutomate(msg.guild.id, trigger, response);
-    await msg.reply({ embeds: [successEmbed(`Automate ajouté: \`${trigger}\` → \`${response}\``)] });
-    return;
-  }
-
-  const delMatch = fullText.match(/^del\s+"(.+?)"$/i);
-  if (delMatch) {
-    const trigger = delMatch[1]!.toLowerCase();
-    const before = store.automateList.length;
-    store.automateList = store.automateList.filter((a) => a.trigger !== trigger);
-    if (store.automateList.length < before) {
-      await dbRemoveAutomate(msg.guild.id, trigger);
-      await msg.reply({ embeds: [successEmbed(`Automate \`${trigger}\` supprimé.`)] });
-    } else {
-      await msg.reply({ embeds: [errorEmbed("Automate introuvable.")] });
-    }
-    return;
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(0x1abc9c)
-    .setTitle("🤖 Automates configurés")
-    .setDescription(
-      store.automateList.length > 0
-        ? store.automateList.map((a) => `**"${a.trigger}"** → "${a.response}"`).join("\n")
-        : "*Aucun automate*"
-    )
-    .addFields(
-      { name: "Ajouter", value: '`&automate add "trigger" "réponse"`' },
-      { name: "Supprimer", value: '`&automate del "trigger"`' }
-    )
     .setTimestamp();
 
   await msg.reply({ embeds: [embed] });

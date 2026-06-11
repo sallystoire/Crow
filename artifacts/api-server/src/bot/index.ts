@@ -159,7 +159,7 @@ export function startBot(): void {
                 .setStyle(ButtonStyle.Danger)
             );
 
-            const alertMsg = await (channel as any).send({ embeds: [alertEmbed], components: [derankRow] }).catch(() => null);
+            const alertMsg = await (channel as any).send({ content: `<@&${alert.mentionRoleId}>`, embeds: [alertEmbed], components: [derankRow] }).catch(() => null);
             if (alertMsg) {
               setupDerankCollector(alertMsg, newMember.id, newMember.user.tag, newMember.guild, alertEmbed);
             }
