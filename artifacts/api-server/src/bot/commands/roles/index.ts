@@ -4,6 +4,8 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ComponentType,
   Role,
 } from "discord.js";
@@ -23,7 +25,6 @@ export async function handleEditRole(msg: Message): Promise<void> {
 
   const store = getGuildStore(msg.guild.id);
 
-  // Build list of packs accessible to the user
   let accessiblePacks = store.editPacks;
   if (!isOwner(msg.member!)) {
     accessiblePacks = store.editPacks.filter((p) =>
@@ -85,7 +86,6 @@ export async function handleEditRole(msg: Message): Promise<void> {
       .map((id) => msg.guild!.roles.cache.get(id))
       .filter(Boolean) as Role[];
 
-    // Check security
     for (const role of roles) {
       if (store.secureroles.has(role.id) && !store.wlSecure.has(msg.author.id) && !isOwner(msg.member!)) {
         await interaction.reply({ content: `⛔ Le rôle **${role.name}** est sécurisé.`, ephemeral: true });
@@ -105,15 +105,27 @@ export async function handleEditRole(msg: Message): Promise<void> {
         });
       } else {
         await target.roles.add(roles);
-        // Fire alert for each role added
         for (const role of roles) {
           const alert = store.alertRoles.get(role.id);
           if (alert) {
             const ch = msg.guild!.channels.cache.get(alert.channelId);
             if (ch?.isTextBased()) {
-              await (ch as any).send(
-                `<@&${alert.mentionRoleId}> ⚠️ <@&${role.id}> attribué à **${target.user.tag}** \`(${target.id})\` par **${msg.author.tag}**`
-              ).catch(() => {});
+              const alertEmbed = new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle("ALERTE 🚨")
+                .setDescription(
+                  `<@&${alert.mentionRoleId}> : <@${msg.author.id}> a mis le rôle <@&${role.id}> à <@${target.id}> (\`${target.id}\`)`
+                );
+              const derankRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`alert_derank_${target.id}`)
+                  .setLabel("🗑️ Derank")
+                  .setStyle(ButtonStyle.Danger)
+              );
+              const alertMsg = await (ch as any).send({ embeds: [alertEmbed], components: [derankRow] }).catch(() => null);
+              if (alertMsg) {
+                setupDerankCollector(alertMsg, target.id, target.user.tag, msg.guild!, alertEmbed);
+              }
             }
           }
         }
@@ -133,78 +145,125 @@ export async function handleEditRole(msg: Message): Promise<void> {
   });
 }
 
+export function setupDerankCollector(alertMsg: any, targetId: string, targetTag: string, guild: any, embed: EmbedBuilder): void {
+  const collector = alertMsg.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 3600000,
+  });
+  collector.on("collect", async (interaction: any) => {
+    if (!interaction.customId.startsWith("alert_derank_")) return;
+    try {
+      const target = await guild.members.fetch(targetId).catch(() => null);
+      if (target) {
+        const rolesToRemove = target.roles.cache.filter((r: any) => r.id !== guild.id);
+        await target.roles.remove(rolesToRemove);
+      }
+      const updatedEmbed = EmbedBuilder.from(embed).setColor(0x2ecc71).setDescription(
+        (embed.data.description ?? "") + `\n\n✅ Derank effectué par <@${interaction.user.id}>`
+      );
+      await interaction.update({ embeds: [updatedEmbed], components: [] });
+      collector.stop();
+    } catch {
+      await interaction.reply({ content: "Impossible de derank ce membre.", ephemeral: true });
+    }
+  });
+}
+
+function buildPackListEmbed(msg: Message, store: ReturnType<typeof getGuildStore>): EmbedBuilder {
+  const desc = store.editPacks.length > 0
+    ? store.editPacks.map((p) => {
+        const grantor = msg.guild!.roles.cache.get(p.grantorRoleId);
+        const roles = p.allowedRoleIds.map((r) => `<@&${r}>`).join(", ");
+        return `(<@&${p.grantorRoleId}>)[${roles}]`;
+      }).join("\n")
+    : "*Aucun pack configuré*";
+  return new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setTitle("📦 Gestion des packs de rôles")
+    .setDescription(desc)
+    .setTimestamp();
+}
+
+function buildPackActionRow(msg: Message, store: ReturnType<typeof getGuildStore>): ActionRowBuilder<StringSelectMenuBuilder> {
+  const actionOptions = [
+    new StringSelectMenuOptionBuilder().setLabel("➕ Créer un pack").setValue("create").setDescription("Créer un nouveau pack de rôles"),
+  ];
+  store.editPacks.slice(0, 11).forEach((p) => {
+    const name = msg.guild!.roles.cache.get(p.grantorRoleId)?.name ?? p.grantorRoleId;
+    actionOptions.push(
+      new StringSelectMenuOptionBuilder().setLabel(`✏️ Modifier: ${name}`).setValue(`edit_${p.grantorRoleId}`),
+      new StringSelectMenuOptionBuilder().setLabel(`🗑️ Supprimer: ${name}`).setValue(`delete_${p.grantorRoleId}`)
+    );
+  });
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId("editpack_action")
+    .setPlaceholder("Choisir une action...")
+    .addOptions(actionOptions.slice(0, 25));
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+}
+
+const backButtonRow = () => new ActionRowBuilder<ButtonBuilder>().addComponents(
+  new ButtonBuilder().setCustomId("editpack_back").setLabel("🔙 Menu").setStyle(ButtonStyle.Secondary)
+);
+
 export async function handleEditPack(msg: Message, _args: string[]): Promise<void> {
   if (!(await requireOwner(msg))) return;
   if (!msg.guild) return;
   const store = getGuildStore(msg.guild.id);
 
-  const buildPackEmbed = () => new EmbedBuilder()
-    .setColor(0x9b59b6)
-    .setTitle("📦 Gestion des packs de rôles")
-    .setDescription(
-      store.editPacks.length > 0
-        ? store.editPacks.map((p) => {
-            const grantor = msg.guild!.roles.cache.get(p.grantorRoleId)?.name ?? p.grantorRoleId;
-            const allowed = p.allowedRoleIds.map((r) => `<@&${r}>`).join(", ");
-            return `**${grantor}** → ${allowed}`;
-          }).join("\n")
-        : "*Aucun pack configuré*"
-    )
-    .setTimestamp();
-
-  const actionOptions = [
-    new StringSelectMenuOptionBuilder().setLabel("➕ Créer un pack").setValue("create").setDescription("Créer un nouveau pack de rôles"),
-  ];
-
-  if (store.editPacks.length > 0) {
-    store.editPacks.slice(0, 11).forEach((p) => {
-      const name = msg.guild!.roles.cache.get(p.grantorRoleId)?.name ?? p.grantorRoleId;
-      actionOptions.push(
-        new StringSelectMenuOptionBuilder().setLabel(`✏️ Modifier: ${name}`).setValue(`edit_${p.grantorRoleId}`),
-        new StringSelectMenuOptionBuilder().setLabel(`🗑️ Supprimer: ${name}`).setValue(`delete_${p.grantorRoleId}`)
-      );
-    });
-  }
-
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId("editpack_action")
-    .setPlaceholder("Choisir une action...")
-    .addOptions(actionOptions.slice(0, 25));
-
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-  const replyMsg = await msg.reply({ embeds: [buildPackEmbed()], components: [row] });
+  const replyMsg = await msg.reply({
+    embeds: [buildPackListEmbed(msg, store)],
+    components: [buildPackActionRow(msg, store)],
+  });
 
   const collector = replyMsg.createMessageComponentCollector({
-    componentType: ComponentType.StringSelect,
-    time: 120000,
+    time: 300000,
     filter: (i) => i.user.id === msg.author.id,
   });
 
+  const goBack = async (interaction?: any) => {
+    const embed = buildPackListEmbed(msg, store);
+    const row = buildPackActionRow(msg, store);
+    if (interaction) {
+      await interaction.update({ embeds: [embed], components: [row] }).catch(() => {});
+    } else {
+      await replyMsg.edit({ embeds: [embed], components: [row] }).catch(() => {});
+    }
+  };
+
   collector.on("collect", async (interaction) => {
+    if (interaction.isButton() && interaction.customId === "editpack_back") {
+      await goBack(interaction);
+      return;
+    }
+
+    if (!interaction.isStringSelectMenu()) return;
     const value = interaction.values[0]!;
 
     if (value === "create") {
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0x9b59b6).setDescription("📝 **Mentionne le rôle granteur puis les rôles autorisés dans ton prochain message.**\nEx: `@modérateur @role1 @role2`")], components: [] });
+      await interaction.update({
+        embeds: [new EmbedBuilder().setColor(0x9b59b6).setDescription("📝 **Mentionne le rôle granteur puis les rôles autorisés dans ton prochain message.**\nEx: `@modérateur @role1 @role2`\n\nFormat d'affichage: `(@modérateur)[@role1, @role2]`")],
+        components: [backButtonRow()],
+      });
 
-      const filter = (m: Message) => m.author.id === msg.author.id;
-      const collected = await msg.channel.awaitMessages({ filter, max: 1, time: 60000 }).catch(() => null);
-      if (!collected || collected.size === 0) {
-        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("⏱️ Temps écoulé.")], components: [] });
-        return;
-      }
+      const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 60000 }).catch(() => null);
+      if (!collected || collected.size === 0) { await goBack(); return; }
 
       const response = collected.first()!;
       const roles = Array.from(response.mentions.roles.values());
+      await response.delete().catch(() => {});
       if (roles.length < 2) {
-        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Tu dois mentionner au moins 2 rôles (1 granteur + au moins 1 rôle autorisé).")], components: [] });
+        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Tu dois mentionner au moins 2 rôles (1 granteur + au moins 1 rôle autorisé).")], components: [backButtonRow()] });
         return;
       }
 
       const [grantorRole, ...allowedRoles] = roles;
       store.editPacks.push({ packId: grantorRole!.id, grantorRoleId: grantorRole!.id, allowedRoleIds: allowedRoles.map((r) => r.id) });
       await dbSaveEditPack(msg.guild!.id, grantorRole!.id, allowedRoles.map((r) => r.id));
-      await replyMsg.edit({ embeds: [buildPackEmbed().setDescription(`✅ Pack **${grantorRole!.name}** créé avec ${allowedRoles.length} rôle(s).\n\n` + (buildPackEmbed().data.description ?? ""))], components: [] });
-      await response.delete().catch(() => {});
+      await replyMsg.edit({
+        embeds: [new EmbedBuilder().setColor(0x2ecc71).setDescription(`✅ Pack créé: (<@&${grantorRole!.id}>)[${allowedRoles.map(r => `<@&${r.id}>`).join(", ")}]`)],
+        components: [backButtonRow()],
+      });
       return;
     }
 
@@ -214,37 +273,41 @@ export async function handleEditPack(msg: Message, _args: string[]): Promise<voi
       if (!pack) { await interaction.reply({ content: "Pack introuvable.", ephemeral: true }); return; }
 
       const grantorName = msg.guild!.roles.cache.get(packId)?.name ?? packId;
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0x9b59b6).setDescription(`✏️ **Modifier le pack "${grantorName}"**\nMentionne les nouveaux rôles autorisés dans ton prochain message.`)], components: [] });
+      await interaction.update({
+        embeds: [new EmbedBuilder().setColor(0x9b59b6).setDescription(`✏️ **Modifier le pack (<@&${packId}>)**\nMentionne les nouveaux rôles autorisés dans ton prochain message.`)],
+        components: [backButtonRow()],
+      });
 
-      const filter = (m: Message) => m.author.id === msg.author.id;
-      const collected = await msg.channel.awaitMessages({ filter, max: 1, time: 60000 }).catch(() => null);
-      if (!collected || collected.size === 0) {
-        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("⏱️ Temps écoulé.")], components: [] });
-        return;
-      }
+      const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 60000 }).catch(() => null);
+      if (!collected || collected.size === 0) { await goBack(); return; }
 
       const response = collected.first()!;
       const newRoles = Array.from(response.mentions.roles.values());
+      await response.delete().catch(() => {});
       if (newRoles.length === 0) {
-        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Mentionne au moins un rôle.")], components: [] });
+        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Mentionne au moins un rôle.")], components: [backButtonRow()] });
         return;
       }
 
       pack.allowedRoleIds = newRoles.map((r) => r.id);
       await dbSaveEditPack(msg.guild!.id, packId, newRoles.map((r) => r.id));
-      await replyMsg.edit({ embeds: [buildPackEmbed().setTitle(`✅ Pack "${grantorName}" modifié`)], components: [] });
-      await response.delete().catch(() => {});
+      await replyMsg.edit({
+        embeds: [new EmbedBuilder().setColor(0x2ecc71).setDescription(`✅ Pack modifié: (<@&${packId}>)[${newRoles.map(r => `<@&${r.id}>`).join(", ")}]`)],
+        components: [backButtonRow()],
+      });
       return;
     }
 
     if (value.startsWith("delete_")) {
       const packId = value.replace("delete_", "");
-      const grantorName = msg.guild!.roles.cache.get(packId)?.name ?? packId;
       const before = store.editPacks.length;
       store.editPacks = store.editPacks.filter((p) => p.grantorRoleId !== packId);
       if (store.editPacks.length < before) {
         await dbRemoveEditPack(msg.guild!.id, packId);
-        await interaction.update({ embeds: [new EmbedBuilder().setColor(0x2ecc71).setDescription(`🗑️ Pack **${grantorName}** supprimé.`)], components: [] });
+        await interaction.update({
+          embeds: [new EmbedBuilder().setColor(0x2ecc71).setDescription(`🗑️ Pack (<@&${packId}>) supprimé.`)],
+          components: [backButtonRow()],
+        });
       } else {
         await interaction.reply({ content: "Pack introuvable.", ephemeral: true });
       }
@@ -275,7 +338,7 @@ export async function handleAddSecure(msg: Message): Promise<void> {
   const store = getGuildStore(msg.guild.id);
   store.secureroles.add(role.id);
   await dbAddSecureRole(msg.guild.id, role.id);
-  await msg.reply(`Vous avez sécurisé le rôle: <@&${role.id}>`);
+  await msg.reply(`<@&${role.id}> est sécurisé.`);
 }
 
 export async function handleDelSecure(msg: Message): Promise<void> {
@@ -286,7 +349,7 @@ export async function handleDelSecure(msg: Message): Promise<void> {
   const store = getGuildStore(msg.guild.id);
   store.secureroles.delete(role.id);
   await dbRemoveSecureRole(msg.guild.id, role.id);
-  await msg.reply(`Vous avez supprimé la sécurité du rôle: <@&${role.id}>`);
+  await msg.reply(`<@&${role.id}> n'est plus sécurisé.`);
 }
 
 export async function handleSecureList(msg: Message): Promise<void> {

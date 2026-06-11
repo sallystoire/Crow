@@ -4,6 +4,8 @@ import {
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   TextChannel,
   ComponentType,
 } from "discord.js";
@@ -15,7 +17,7 @@ import { dbAddMute, dbRemoveMute, dbClearMutes, dbSaveGuildConfig } from "../../
 function buildSetupEmbed(store: ReturnType<typeof getGuildStore>): EmbedBuilder {
   const cfg = store.muteConfig;
   const levelsText = cfg.levels.length > 0
-    ? cfg.levels.map((l) => `**Niveau ${l.level}:** ${l.roleIds.map((r) => `<@&${r}>`).join(", ")} — ${l.canTempmute ? "&tempmute" : ""}${l.canUnmute ? " &unmute" : ""}`).join("\n")
+    ? cfg.levels.map((l) => `**Niveau ${l.level}:** ${l.roleIds.map((r) => `<@&${r}>`).join(", ")} — ${l.canTempmute ? "&tempmute ✓" : ""}${l.canUnmute ? " &unmute ✓" : ""}`).join("\n")
     : "*Aucun niveau*";
   const reasonsText = cfg.muteReasons.length > 0
     ? cfg.muteReasons.map((r, i) => `${i + 1}. ${r}`).join("\n")
@@ -34,69 +36,89 @@ function buildSetupEmbed(store: ReturnType<typeof getGuildStore>): EmbedBuilder 
     .setTimestamp();
 }
 
+function buildMainMenu(): ActionRowBuilder<StringSelectMenuBuilder> {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId("setupmute_select")
+    .setPlaceholder("Que voulez-vous configurer ?")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("⏱️ Temps max").setValue("maxtime"),
+      new StringSelectMenuOptionBuilder().setLabel("📢 Salon sanction").setValue("channel"),
+      new StringSelectMenuOptionBuilder().setLabel("🔇 Rôle mute").setValue("role"),
+      new StringSelectMenuOptionBuilder().setLabel("🏅 Ajouter un niveau").setValue("level"),
+      new StringSelectMenuOptionBuilder().setLabel("📋 Ajouter une raison").setValue("reason"),
+      new StringSelectMenuOptionBuilder().setLabel("🗑️ Supprimer une raison").setValue("delreason"),
+    );
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+}
+
+const backBtn = () => new ActionRowBuilder<ButtonBuilder>().addComponents(
+  new ButtonBuilder().setCustomId("setupmute_back").setLabel("🔙 Menu").setStyle(ButtonStyle.Secondary)
+);
+
 export async function handleSetupMuteParam(msg: Message, _args: string[]): Promise<void> {
   if (!(await requireOwner(msg))) return;
   if (!msg.guild) return;
   const store = getGuildStore(msg.guild.id);
 
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId("setupmute_select")
-    .setPlaceholder("Que voulez-vous configurer ?")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("⏱️ Temps max").setValue("maxtime").setDescription("Durée maximale d'un mute temporaire"),
-      new StringSelectMenuOptionBuilder().setLabel("📢 Salon sanction").setValue("channel").setDescription("Salon où les mutes sont annoncés"),
-      new StringSelectMenuOptionBuilder().setLabel("🔇 Rôle mute").setValue("role").setDescription("Rôle appliqué aux membres mutés"),
-      new StringSelectMenuOptionBuilder().setLabel("🏅 Ajouter un niveau").setValue("level").setDescription("Configurer les niveaux de modération"),
-      new StringSelectMenuOptionBuilder().setLabel("📋 Ajouter une raison").setValue("reason").setDescription("Ajouter une raison de mute prédéfinie"),
-      new StringSelectMenuOptionBuilder().setLabel("🗑️ Supprimer une raison").setValue("delreason").setDescription("Supprimer une raison de mute")
-    );
-
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-  const replyMsg = await msg.reply({ embeds: [buildSetupEmbed(store)], components: [row] });
+  const replyMsg = await msg.reply({ embeds: [buildSetupEmbed(store)], components: [buildMainMenu()] });
 
   const collector = replyMsg.createMessageComponentCollector({
-    componentType: ComponentType.StringSelect,
-    time: 120000,
+    time: 300000,
     filter: (i) => i.user.id === msg.author.id,
   });
 
+  const goBack = async (interaction?: any) => {
+    if (interaction) {
+      await interaction.update({ embeds: [buildSetupEmbed(store)], components: [buildMainMenu()] }).catch(() => {});
+    } else {
+      await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [buildMainMenu()] }).catch(() => {});
+    }
+  };
+
   collector.on("collect", async (interaction) => {
+    if (interaction.isButton() && interaction.customId === "setupmute_back") {
+      await goBack(interaction);
+      return;
+    }
+    if (!interaction.isStringSelectMenu()) return;
+
     const choice = interaction.values[0]!;
 
     if (choice === "maxtime") {
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("⏱️ **Quelle est la durée max en minutes ?** (Réponds dans ce salon)")], components: [] });
+      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("⏱️ **Quelle est la durée max en minutes ?** (Réponds dans ce salon)")], components: [backBtn()] });
       const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 30000 }).catch(() => null);
-      if (!collected || collected.size === 0) { await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] }); return; }
+      if (!collected || collected.size === 0) { await goBack(); return; }
       const minutes = parseInt(collected.first()!.content, 10);
       await collected.first()!.delete().catch(() => {});
-      if (isNaN(minutes) || minutes < 1) { await replyMsg.edit({ embeds: [buildSetupEmbed(store).setDescription("❌ Durée invalide.")], components: [row] }); return; }
+      if (isNaN(minutes) || minutes < 1) { await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Durée invalide.")], components: [backBtn()] }); return; }
       store.muteConfig.maxDurationMinutes = minutes;
       await dbSaveGuildConfig(msg.guild!.id, store);
-      await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] });
+      await goBack();
       return;
     }
 
     if (choice === "channel") {
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("📢 **Mentionne le salon de sanction dans ce salon.**")], components: [] });
+      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("📢 **Mentionne le salon de sanction.**")], components: [backBtn()] });
       const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 30000 }).catch(() => null);
-      if (!collected || collected.size === 0) { await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] }); return; }
+      if (!collected || collected.size === 0) { await goBack(); return; }
       const channel = collected.first()!.mentions.channels.first();
       await collected.first()!.delete().catch(() => {});
-      if (!channel) { await replyMsg.edit({ embeds: [buildSetupEmbed(store).setDescription("❌ Salon introuvable.")], components: [row] }); return; }
+      if (!channel) { await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Salon introuvable.")], components: [backBtn()] }); return; }
       store.muteConfig.muteChannelId = channel.id;
       await dbSaveGuildConfig(msg.guild!.id, store);
-      await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] });
+      await goBack();
       return;
     }
 
     if (choice === "role") {
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("🔇 **Mentionne le rôle mute.**")], components: [] });
+      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("🔇 **Mentionne le rôle mute.** (ou tape `auto` pour le créer automatiquement)")], components: [backBtn()] });
       const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 30000 }).catch(() => null);
-      if (!collected || collected.size === 0) { await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] }); return; }
-      const role = collected.first()!.mentions.roles.first();
-      await collected.first()!.delete().catch(() => {});
+      if (!collected || collected.size === 0) { await goBack(); return; }
+      const resp = collected.first()!;
+      const role = resp.mentions.roles.first();
+      await resp.delete().catch(() => {});
+
       if (!role) {
-        // Auto-create mute role if no mention
         try {
           const newRole = await msg.guild!.roles.create({ name: "Muet", color: 0x808080, reason: "Rôle mute auto-créé" });
           for (const ch of msg.guild!.channels.cache.values()) {
@@ -106,36 +128,33 @@ export async function handleSetupMuteParam(msg: Message, _args: string[]): Promi
           }
           store.muteConfig.muteRoleId = newRole.id;
           await dbSaveGuildConfig(msg.guild!.id, store);
-          await replyMsg.edit({ embeds: [buildSetupEmbed(store).setDescription(`✅ Rôle mute **Muet** créé automatiquement.`)], components: [row] });
-        } catch {
-          await replyMsg.edit({ embeds: [buildSetupEmbed(store).setDescription("❌ Impossible de créer le rôle.")], components: [row] });
+        } catch {}
+      } else {
+        store.muteConfig.muteRoleId = role.id;
+        for (const ch of msg.guild!.channels.cache.values()) {
+          if (ch.isTextBased() && ch instanceof TextChannel) {
+            await ch.permissionOverwrites.edit(role, { SendMessages: false }).catch(() => {});
+          }
         }
-        return;
+        await dbSaveGuildConfig(msg.guild!.id, store);
       }
-      store.muteConfig.muteRoleId = role.id;
-      for (const ch of msg.guild!.channels.cache.values()) {
-        if (ch.isTextBased() && ch instanceof TextChannel) {
-          await ch.permissionOverwrites.edit(role, { SendMessages: false }).catch(() => {});
-        }
-      }
-      await dbSaveGuildConfig(msg.guild!.id, store);
-      await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] });
+      await goBack();
       return;
     }
 
     if (choice === "level") {
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("🏅 **Quel niveau ? (ex: `1`) puis quels rôles ? (mentionne-les) et les permissions (`&tempmute`, `&unmute`)**\n\nEx: `1 @modérateur &tempmute`")], components: [] });
+      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("🏅 **Format: `<niveau> @role1 @role2 [tempmute] [unmute]`**\nEx: `1 @modérateur tempmute`")], components: [backBtn()] });
       const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 60000 }).catch(() => null);
-      if (!collected || collected.size === 0) { await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] }); return; }
+      if (!collected || collected.size === 0) { await goBack(); return; }
       const response = collected.first()!;
       const levelNum = parseInt(response.content, 10);
       const roles = Array.from(response.mentions.roles.values());
-      const canTempmute = response.content.includes("&tempmute") || response.content.includes("tempmute");
-      const canUnmute = response.content.includes("&unmute") || response.content.includes("unmute");
+      const canTempmute = /tempmute/i.test(response.content);
+      const canUnmute = /unmute/i.test(response.content);
       await response.delete().catch(() => {});
 
       if (isNaN(levelNum) || roles.length === 0) {
-        await replyMsg.edit({ embeds: [buildSetupEmbed(store).setDescription("❌ Format invalide.")], components: [row] });
+        await replyMsg.edit({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setDescription("❌ Format invalide.")], components: [backBtn()] });
         return;
       }
 
@@ -149,20 +168,20 @@ export async function handleSetupMuteParam(msg: Message, _args: string[]): Promi
         store.muteConfig.levels.sort((a, b) => a.level - b.level);
       }
       await dbSaveGuildConfig(msg.guild!.id, store);
-      await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] });
+      await goBack();
       return;
     }
 
     if (choice === "reason") {
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("📋 **Quelle raison veux-tu ajouter ?** (Réponds dans ce salon)")], components: [] });
+      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("📋 **Quelle raison veux-tu ajouter ?**")], components: [backBtn()] });
       const collected = await msg.channel.awaitMessages({ filter: (m) => m.author.id === msg.author.id, max: 1, time: 30000 }).catch(() => null);
-      if (!collected || collected.size === 0) { await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] }); return; }
+      if (!collected || collected.size === 0) { await goBack(); return; }
       const reason = collected.first()!.content.trim();
       await collected.first()!.delete().catch(() => {});
-      if (!reason) { await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] }); return; }
+      if (!reason) { await goBack(); return; }
       store.muteConfig.muteReasons.push(reason);
       await dbSaveGuildConfig(msg.guild!.id, store);
-      await replyMsg.edit({ embeds: [buildSetupEmbed(store)], components: [row] });
+      await goBack();
       return;
     }
 
@@ -172,7 +191,7 @@ export async function handleSetupMuteParam(msg: Message, _args: string[]): Promi
         return;
       }
       const reasonMenu = new StringSelectMenuBuilder()
-        .setCustomId("setupmute_delreason")
+        .setCustomId("setupmute_delreason_select")
         .setPlaceholder("Choisir la raison à supprimer...")
         .addOptions(
           store.muteConfig.muteReasons.slice(0, 25).map((r, i) =>
@@ -180,16 +199,16 @@ export async function handleSetupMuteParam(msg: Message, _args: string[]): Promi
           )
         );
       const reasonRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(reasonMenu);
-      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("🗑️ **Quelle raison supprimer ?**")], components: [reasonRow] });
+      await interaction.update({ embeds: [new EmbedBuilder().setColor(0xe67e22).setDescription("🗑️ **Quelle raison supprimer ?**")], components: [reasonRow, backBtn()] });
+      return;
+    }
 
-      const r2 = replyMsg.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 30000, filter: (i) => i.user.id === msg.author.id });
-      r2.once("collect", async (i2) => {
-        const idx = parseInt(i2.values[0]!);
-        store.muteConfig.muteReasons.splice(idx, 1);
-        await dbSaveGuildConfig(msg.guild!.id, store);
-        await i2.update({ embeds: [buildSetupEmbed(store)], components: [row] });
-        r2.stop();
-      });
+    // Handle delreason selection
+    if (interaction.isStringSelectMenu() && interaction.customId === "setupmute_delreason_select") {
+      const idx = parseInt(interaction.values[0]!);
+      store.muteConfig.muteReasons.splice(idx, 1);
+      await dbSaveGuildConfig(msg.guild!.id, store);
+      await goBack(interaction);
       return;
     }
   });
@@ -231,7 +250,7 @@ export async function handleTempMute(msg: Message, args: string[]): Promise<void
   const defaultDuration = 10;
 
   if (store.muteConfig.muteReasons.length > 0) {
-    const reasonOptions = store.muteConfig.muteReasons.slice(0, 25).map((r, i) =>
+    const reasonOptions = store.muteConfig.muteReasons.slice(0, 24).map((r, i) =>
       new StringSelectMenuOptionBuilder().setLabel(r.slice(0, 80)).setValue(`reason_${i}`)
     );
     reasonOptions.push(
@@ -284,7 +303,6 @@ export async function handleTempMute(msg: Message, args: string[]): Promise<void
       if (collected.size === 0) replyMsg.edit({ components: [] }).catch(() => {});
     });
   } else {
-    // No reasons configured — mute directly
     const duration = durationArg > 0 ? durationArg : defaultDuration;
     const reason = args.slice(2).join(" ") || "Aucune raison";
     await applyMute(msg, target, store, duration, reason, null);
@@ -332,7 +350,6 @@ async function applyMute(
       await msg.reply(successText);
     }
 
-    // Announce in mute channel if configured
     if (store.muteConfig.muteChannelId) {
       const ch = msg.guild!.channels.cache.get(store.muteConfig.muteChannelId);
       if (ch?.isTextBased()) {

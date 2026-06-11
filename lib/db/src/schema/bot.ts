@@ -142,13 +142,14 @@ export const botWlSecure = pgTable(
   (t) => [primaryKey({ columns: [t.guildId, t.userId] })]
 );
 
-// Alert roles: watchRoleId -> channelId
+// Alert roles: watchRoleId -> channelId + mentionRoleId
 export const botAlertRoles = pgTable(
   "bot_alert_roles",
   {
     guildId: varchar("guild_id", { length: 20 }).notNull(),
     watchRoleId: varchar("watch_role_id", { length: 20 }).notNull(),
     channelId: varchar("channel_id", { length: 20 }).notNull(),
+    mentionRoleId: varchar("mention_role_id", { length: 20 }).notNull().default(""),
   },
   (t) => [primaryKey({ columns: [t.guildId, t.watchRoleId] })]
 );

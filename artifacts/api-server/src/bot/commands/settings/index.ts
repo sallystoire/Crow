@@ -15,6 +15,7 @@ import {
   dbSaveCustomPerms,
   dbAddAutomate, dbRemoveAutomate,
   dbSaveAlertRole,
+  dbAddWlSecure, dbRemoveWlSecure,
 } from "../../db.js";
 
 export async function handleSet(msg: Message, args: string[]): Promise<void> {
@@ -68,7 +69,7 @@ export async function handleOwner(msg: Message, args: string[]): Promise<void> {
     }
     store.ownerList.add(targetUser.id);
     await dbAddOwner(msg.guild.id, targetUser.id);
-    await msg.reply(`**<@${targetUser.id}> a été ajouté à la owner list.**`);
+    await msg.reply(`<@${targetUser.id}> a été ajouté à la ownerlist.`);
     return;
   }
 
@@ -78,7 +79,7 @@ export async function handleOwner(msg: Message, args: string[]): Promise<void> {
     }
     store.ownerList.delete(targetUser.id);
     await dbRemoveOwner(msg.guild.id, targetUser.id);
-    await msg.reply(`**<@${targetUser.id}> a été retiré de la owner list.**`);
+    await msg.reply(`<@${targetUser.id}> a été supprimé de la ownerlist.`);
     return;
   }
 
@@ -112,13 +113,13 @@ export async function handleWl(msg: Message, args: string[]): Promise<void> {
   if (action === "add") {
     store.wlList.add(targetUser.id);
     await dbAddWl(msg.guild.id, targetUser.id);
-    await msg.reply(`**<@${targetUser.id}> a été ajouté à la wl list.**`);
+    await msg.reply(`<@${targetUser.id}> a été ajouté à la whitelist.`);
     return;
   }
   if (action === "del") {
     store.wlList.delete(targetUser.id);
     await dbRemoveWl(msg.guild.id, targetUser.id);
-    await msg.reply(`**<@${targetUser.id}> a été retiré de la wl list.**`);
+    await msg.reply(`<@${targetUser.id}> a été supprimé de la whitelist.`);
     return;
   }
 
@@ -138,6 +139,34 @@ export async function handleWList(msg: Message): Promise<void> {
     .setTimestamp();
 
   await msg.reply({ embeds: [embed] });
+}
+
+export async function handleWlSecure(msg: Message, args: string[]): Promise<void> {
+  if (!(await requireOwner(msg))) return;
+  if (!msg.guild) return;
+  const store = getGuildStore(msg.guild.id);
+  const action = args[0];
+  const targetUser = msg.mentions.users.first();
+
+  if (!action || !targetUser) {
+    await msg.reply("**Format: `&wlsecure add @user` ou `&wlsecure del @user`**");
+    return;
+  }
+
+  if (action === "add") {
+    store.wlSecure.add(targetUser.id);
+    await dbAddWlSecure(msg.guild.id, targetUser.id);
+    await msg.reply(`<@${targetUser.id}> a été ajouté à la wlsecure.`);
+    return;
+  }
+  if (action === "del") {
+    store.wlSecure.delete(targetUser.id);
+    await dbRemoveWlSecure(msg.guild.id, targetUser.id);
+    await msg.reply(`<@${targetUser.id}> a été supprimé de la wlsecure.`);
+    return;
+  }
+
+  await msg.reply("**Action inconnue. Utilise `add` ou `del`.**");
 }
 
 export async function handleStats(msg: Message): Promise<void> {
@@ -202,7 +231,33 @@ export async function handleAlertRoles(msg: Message): Promise<void> {
   store.alertRoles.set(triggerRole.id, { channelId: msg.channel.id, mentionRoleId: mentionRole.id });
   await dbSaveAlertRole(msg.guild.id, triggerRole.id, msg.channel.id, mentionRole.id);
 
-  await msg.reply(`**Alerte configurée:** quand <@&${triggerRole.id}> est ajouté → <@&${mentionRole.id}> sera mentionné ici.`);
+  await msg.reply(`<@&${triggerRole.id}> a été ajouté à l'alerte.`);
+}
+
+export async function handleAlertRoleList(msg: Message): Promise<void> {
+  if (!(await requireOwner(msg))) return;
+  if (!msg.guild) return;
+  const store = getGuildStore(msg.guild.id);
+
+  if (store.alertRoles.size === 0) {
+    await msg.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("🔔 Alertes de rôles").setDescription("*Aucune alerte configurée*").setTimestamp()] });
+    return;
+  }
+
+  const lines = Array.from(store.alertRoles.entries()).map(([watchRoleId, alert]) => {
+    const watchRole = msg.guild!.roles.cache.get(watchRoleId);
+    const mentionRole = msg.guild!.roles.cache.get(alert.mentionRoleId);
+    const channel = msg.guild!.channels.cache.get(alert.channelId);
+    return `<@&${watchRoleId}> (**${watchRole?.name ?? watchRoleId}**) → notifie <@&${alert.mentionRoleId}> (**${mentionRole?.name ?? alert.mentionRoleId}**) dans ${channel ? `<#${alert.channelId}>` : `\`${alert.channelId}\``}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0xe67e22)
+    .setTitle("🔔 Alertes de rôles configurées")
+    .setDescription(lines.join("\n"))
+    .setTimestamp();
+
+  await msg.reply({ embeds: [embed] });
 }
 
 export async function handleAutomate(msg: Message, args: string[]): Promise<void> {

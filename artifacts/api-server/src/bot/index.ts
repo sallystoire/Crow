@@ -4,12 +4,20 @@ import {
   Partials,
   VoiceState,
   GuildMember,
+  AuditLogEvent,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
 } from "discord.js";
 import { logger } from "../lib/logger.js";
 import { handleMessage, handleMessageDelete } from "./handlers/messageHandler.js";
 import { handleVoiceJoinCreate, handleVoiceLeave } from "./commands/voice/index.js";
 import { getGuildStore } from "./store.js";
 import { loadGuildFromDb } from "./db.js";
+import { isOwner } from "./utils/permissions.js";
+import { setupDerankCollector } from "./commands/roles/index.js";
 
 export function startBot(): void {
   const token = process.env["DISCORD_BOT_TOKEN"];
@@ -35,7 +43,6 @@ export function startBot(): void {
     logger.info({ tag: client.user?.tag }, "Discord bot connected");
     client.user?.setActivity("Serveur | &help", { type: 3 });
 
-    // Load all guilds from DB on startup
     for (const guild of client.guilds.cache.values()) {
       await loadGuildFromDb(guild.id).catch((err) =>
         logger.error({ err, guildId: guild.id }, "Failed to load guild from DB")
@@ -60,16 +67,11 @@ export function startBot(): void {
 
   client.on("voiceStateUpdate", async (oldState: VoiceState, newState: VoiceState) => {
     try {
-      // User joined
       if (!oldState.channelId && newState.channelId) {
         await handleVoiceJoinCreate(newState);
       }
-
-      // User left
       if (oldState.channelId && !newState.channelId) {
         await handleVoiceLeave(oldState);
-
-        // AntiDeco
         if (oldState.guild && oldState.member) {
           const store = getGuildStore(oldState.guild.id);
           if (store.antiDecoLimit) {
@@ -85,8 +87,6 @@ export function startBot(): void {
           }
         }
       }
-
-      // Prevent antimove
       if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId && newState.member) {
         const store = getGuildStore(newState.guild.id);
         if (store.antiMoveList.has(newState.member.id)) {
@@ -103,14 +103,68 @@ export function startBot(): void {
     try {
       const store = getGuildStore(newMember.guild.id);
       const addedRoles = newMember.roles.cache.filter((r: any) => !oldMember.roles.cache.has(r.id));
+      if (addedRoles.size === 0) return;
+
+      // Fetch audit log to find who made the change
+      let executorId: string | null = null;
+      let executorTag: string = "Inconnu";
+      try {
+        const auditLogs = await newMember.guild.fetchAuditLogs({ type: AuditLogEvent.MemberRoleUpdate, limit: 5 });
+        const entry = auditLogs.entries.find(
+          (e) => (e.target as any)?.id === newMember.id && Date.now() - e.createdTimestamp < 8000
+        );
+        if (entry?.executor) {
+          executorId = entry.executor.id;
+          executorTag = entry.executor.tag ?? entry.executor.username ?? "Inconnu";
+        }
+      } catch {}
+
       for (const [roleId] of addedRoles) {
+        // Auto-remove secure roles assigned by non-wlSecure users
+        if (store.secureroles.has(roleId)) {
+          const isBot = executorId === client.user?.id;
+          const isAllowed = isBot ||
+            (executorId && (store.wlSecure.has(executorId) || store.ownerList.has(executorId) || executorId === newMember.guild.ownerId));
+          if (!isAllowed) {
+            await newMember.roles.remove(roleId).catch(() => {});
+            const logChannel = store.muteConfig.muteChannelId
+              ? newMember.guild.channels.cache.get(store.muteConfig.muteChannelId)
+              : null;
+            if (logChannel?.isTextBased()) {
+              await (logChannel as any).send(
+                `⛔ Le rôle <@&${roleId}> a été **retiré automatiquement** de <@${newMember.id}> car <@${executorId ?? "inconnu"}> n'est pas dans la wlsecure.`
+              ).catch(() => {});
+            }
+            continue;
+          }
+        }
+
+        // Alert roles notification
         const alert = store.alertRoles.get(roleId);
-        if (!alert) continue;
-        const channel = newMember.guild.channels.cache.get(alert.channelId);
-        if (!channel?.isTextBased()) continue;
-        await (channel as any).send(
-          `<@&${alert.mentionRoleId}> ⚠️ <@&${roleId}> attribué à **${newMember.user.tag}** \`(${newMember.id})\``
-        ).catch(() => {});
+        if (alert) {
+          const channel = newMember.guild.channels.cache.get(alert.channelId);
+          if (channel?.isTextBased()) {
+            const alertEmbed = new EmbedBuilder()
+              .setColor(0xe74c3c)
+              .setTitle("ALERTE 🚨")
+              .setDescription(
+                `<@&${alert.mentionRoleId}> : <@${executorId ?? "inconnu"}> a mis le rôle <@&${roleId}> à <@${newMember.id}> (\`${newMember.id}\`)`
+              )
+              .setTimestamp();
+
+            const derankRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`alert_derank_${newMember.id}`)
+                .setLabel("🗑️ Derank")
+                .setStyle(ButtonStyle.Danger)
+            );
+
+            const alertMsg = await (channel as any).send({ embeds: [alertEmbed], components: [derankRow] }).catch(() => null);
+            if (alertMsg) {
+              setupDerankCollector(alertMsg, newMember.id, newMember.user.tag, newMember.guild, alertEmbed);
+            }
+          }
+        }
       }
     } catch (err) {
       logger.error({ err }, "Error handling guildMemberUpdate");
