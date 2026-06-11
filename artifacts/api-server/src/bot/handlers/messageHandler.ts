@@ -1,4 +1,4 @@
-import { Client, Message, VoiceState } from "discord.js";
+import { Message } from "discord.js";
 import { getGuildStore } from "../store.js";
 import { checkAntiLink } from "../commands/link/index.js";
 import { recordDeletedMessage } from "../commands/snipe/index.js";
@@ -34,6 +34,7 @@ import {
   handleAddSecure,
   handleDelSecure,
   handleDerank,
+  handleSecureList,
 } from "../commands/roles/index.js";
 
 import {
@@ -45,21 +46,19 @@ import {
 } from "../commands/mute/index.js";
 
 import {
-  handleSetVoice,
   handleVc,
   handleJoinVoice,
   handleMove,
-  handleAntiMove,
-  handleFollowUser,
   handleAntiDeco,
   handlePv,
   handleAccess,
   handleUnpv,
   handleUnpvAll,
+  handlePvList,
+  handleWakeUp,
 } from "../commands/voice/index.js";
 
-import { handleAntiLink, handleAllowLink } from "../commands/link/index.js";
-import { handleClear, handleEmoji } from "../commands/messages/index.js";
+import { handleClear, handleEmoji, handlePing } from "../commands/messages/index.js";
 
 import {
   handleSet,
@@ -69,9 +68,11 @@ import {
   handleStats,
   handleAlertRoles,
   handleAutomate,
+  handleOwnerList,
+  handleWList,
 } from "../commands/settings/index.js";
 
-const PREFIX = ".";
+const PREFIX = "&";
 
 export async function handleMessage(msg: Message): Promise<void> {
   if (!msg.guild || msg.author.bot) return;
@@ -128,6 +129,7 @@ export async function handleMessage(msg: Message): Promise<void> {
       await handleClearBan(msg);
       break;
     case "clearbl":
+    case "blclear":
       await handleClearBl(msg);
       break;
 
@@ -180,6 +182,9 @@ export async function handleMessage(msg: Message): Promise<void> {
     case "delsecure":
       await handleDelSecure(msg);
       break;
+    case "securelist":
+      await handleSecureList(msg);
+      break;
     case "derank":
       await handleDerank(msg);
       break;
@@ -202,9 +207,6 @@ export async function handleMessage(msg: Message): Promise<void> {
       break;
 
     // VOICE
-    case "setvoice":
-      await handleSetVoice(msg, args);
-      break;
     case "vc":
       await handleVc(msg);
       break;
@@ -214,17 +216,14 @@ export async function handleMessage(msg: Message): Promise<void> {
     case "move":
       await handleMove(msg);
       break;
-    case "antimove":
-      await handleAntiMove(msg, args);
-      break;
-    case "followuser":
-      await handleFollowUser(msg, args);
-      break;
     case "antideco":
       await handleAntiDeco(msg, args);
       break;
     case "pv":
       await handlePv(msg);
+      break;
+    case "pvlist":
+      await handlePvList(msg);
       break;
     case "access":
       await handleAccess(msg);
@@ -235,13 +234,8 @@ export async function handleMessage(msg: Message): Promise<void> {
     case "unpvall":
       await handleUnpvAll(msg);
       break;
-
-    // LINK
-    case "antilink":
-      await handleAntiLink(msg, args);
-      break;
-    case "allowlink":
-      await handleAllowLink(msg);
+    case "wakeup":
+      await handleWakeUp(msg);
       break;
 
     // MESSAGES
@@ -250,6 +244,9 @@ export async function handleMessage(msg: Message): Promise<void> {
       break;
     case "emoji":
       await handleEmoji(msg, args);
+      break;
+    case "ping":
+      await handlePing(msg);
       break;
 
     // SETTINGS
@@ -262,8 +259,14 @@ export async function handleMessage(msg: Message): Promise<void> {
     case "owner":
       await handleOwner(msg, args);
       break;
+    case "ownerlist":
+      await handleOwnerList(msg);
+      break;
     case "wl":
       await handleWl(msg, args);
+      break;
+    case "wlist":
+      await handleWList(msg);
       break;
     case "stats":
       await handleStats(msg);
@@ -296,56 +299,51 @@ async function handleHelp(msg: Message): Promise<void> {
     .addFields(
       {
         name: "🔨 Ban",
-        value: "`.ban` `.unban` `.kick` `.bl` `.unbl` `.banlist` `.bllist` `.clearban` `.clearbl`",
+        value: "`&ban` `&unban` `&kick` `&bl` `&unbl` `&banlist` `&bllist` `&clearban` `&clearbl`",
         inline: false,
       },
       {
         name: "🔍 Snipe",
-        value: "`.snipe [n]` `.snipe @user` `.hideme`",
+        value: "`&snipe [n]` `&snipe @user` `&hideme`",
         inline: false,
       },
       {
         name: "🖼️ Profil",
-        value: "`.pic [@user]` `.banner [@user]`",
+        value: "`&pic [@user]` `&banner [@user]`",
         inline: false,
       },
       {
         name: "🏠 Salons",
-        value: "`.lock` `.unlock` `.slowmode` `.sondage` `.renew`",
+        value: "`&lock` `&unlock` `&slowmode` `&sondage` `&renew`",
         inline: false,
       },
       {
         name: "🎭 Rôles",
-        value: "`.editrole` `.editpack` `.idroles` `.addsecure` `.delsecure` `.derank`",
+        value: "`&editrole @user` `&editpack` `&idroles` `&addsecure @role` `&delsecure @role` `&securelist` `&derank @user`",
         inline: false,
       },
       {
         name: "🔇 Mute",
-        value: "`.setupmute` `.tempmute` `.unmute` `.mutelist` `.unmuteall`",
+        value: "`&setupmute` `&tempmute @user [durée]` `&unmute @user` `&mutelist` `&unmuteall`",
         inline: false,
       },
       {
         name: "🎙️ Vocal",
-        value: "`.setvoice` `.vc` `.join` `.move` `.antimove` `.followuser` `.antideco` `.pv` `.access` `.unpv` `.unpvall`",
-        inline: false,
-      },
-      {
-        name: "🔗 Liens",
-        value: "`.antilink` `.allowlink`",
+        value: "`&vc` `&join @user` `&move @user` `&antideco N` `&pv` `&pvlist` `&access @user` `&unpv` `&unpvall` `&wakeup @user`",
         inline: false,
       },
       {
         name: "🗑️ Messages",
-        value: "`.clear` `.emoji`",
+        value: "`&clear [n]` `&emoji` `&ping @user`",
         inline: false,
       },
       {
         name: "⚙️ Settings",
-        value: "`.set` `.perms` `.owner` `.wl` `.stats` `.alertroles` `.automate`",
+        value: "`&set` `&perms` `&owner add/del @user` `&ownerlist` `&wl add/del @user` `&wlist` `&stats @role` `&alertroles @trigger @mention` `&automate`",
         inline: false,
       }
     )
-    .setFooter({ text: "Préfixe: ." })
+    .setFooter({ text: "Préfixe: &" })
     .setTimestamp();
 
   await msg.reply({ embeds: [embed] });

@@ -46,11 +46,11 @@ export async function handleHideMe(msg: Message): Promise<void> {
   if (store.hideMeList.has(msg.author.id)) {
     store.hideMeList.delete(msg.author.id);
     await dbRemoveHideMe(msg.guild.id, msg.author.id);
-    await msg.reply("✅ Tu apparaîtras désormais dans les snipes.");
+    await msg.reply(`✅ <@${msg.author.id}> tu apparaîtras désormais dans les snipes.`);
   } else {
     store.hideMeList.add(msg.author.id);
     await dbAddHideMe(msg.guild.id, msg.author.id);
-    await msg.reply("✅ Tu n'apparaîtras plus dans les snipes.");
+    await msg.reply(`✅ <@${msg.author.id}> vous êtes caché des snipers.`);
   }
 }
 

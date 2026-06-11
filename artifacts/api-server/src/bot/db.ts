@@ -129,8 +129,12 @@ export async function loadGuildFromDb(guildId: string): Promise<void> {
     for (const sr of secureRolesRows) store.secureroles.add(sr.roleId);
     for (const ws of wlSecureRows) store.wlSecure.add(ws.userId);
 
+    // alertRoles: channelId field stores "channelId|||mentionRoleId"
     for (const ar of alertRolesRows) {
-      store.alertRoles.set(ar.watchRoleId, ar.channelId);
+      const parts = ar.channelId.split("|||");
+      const channelId = parts[0] ?? ar.channelId;
+      const mentionRoleId = parts[1] ?? "";
+      store.alertRoles.set(ar.watchRoleId, { channelId, mentionRoleId });
     }
 
     for (const al of antiLinkRows) store.antiLinkChannels.add(al.channelId);
@@ -149,6 +153,7 @@ export async function loadGuildFromDb(guildId: string): Promise<void> {
         muteChannelId: cfg.muteChannelId ?? undefined,
         maxDurationMinutes: parseInt(cfg.muteMaxMinutes),
         levels: (cfg.muteLevels as any[]) ?? [],
+        muteReasons: (cfg as any).muteReasons ?? [],
       };
       store.voiceConfig = {
         createChannelId: cfg.voiceCreateChannelId ?? undefined,
@@ -372,13 +377,20 @@ export async function dbRemoveSecureRole(guildId: string, roleId: string): Promi
 }
 
 // ─── ALERT ROLES ─────────────────────────────────────────────────────────────
+// channelId field encodes: "channelId|||mentionRoleId"
 
-export async function dbSaveAlertRole(guildId: string, watchRoleId: string, channelId: string): Promise<void> {
+export async function dbSaveAlertRole(
+  guildId: string,
+  watchRoleId: string,
+  channelId: string,
+  mentionRoleId: string
+): Promise<void> {
   if (!db) return;
-  await db.insert(botAlertRoles).values({ guildId, watchRoleId, channelId })
+  const encoded = `${channelId}|||${mentionRoleId}`;
+  await db.insert(botAlertRoles).values({ guildId, watchRoleId, channelId: encoded })
     .onConflictDoUpdate({
       target: [botAlertRoles.guildId, botAlertRoles.watchRoleId],
-      set: { channelId },
+      set: { channelId: encoded },
     });
 }
 
@@ -411,7 +423,7 @@ export async function dbSaveGuildConfig(guildId: string, store: GuildStore): Pro
     voicePanelMessageId: store.voiceConfig.panelMessageId ?? null,
     antiDecoLimit: store.antiDecoLimit != null ? String(store.antiDecoLimit) : null,
     updatedAt: new Date(),
-  }).onConflictDoUpdate({
+  } as any).onConflictDoUpdate({
     target: [botGuildConfigs.guildId],
     set: {
       muteRoleId: store.muteConfig.muteRoleId ?? null,

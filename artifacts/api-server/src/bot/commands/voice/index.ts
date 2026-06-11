@@ -17,54 +17,6 @@ import { requireOwner, requireWL, isOwner } from "../../utils/permissions.js";
 import { successEmbed, errorEmbed, listEmbed, infoEmbed } from "../../utils/embeds.js";
 import { dbSaveGuildConfig, dbAddAntiMove, dbRemoveAntiMove } from "../../db.js";
 
-export async function handleSetVoice(msg: Message, args: string[]): Promise<void> {
-  if (!(await requireOwner(msg))) return;
-  if (!msg.guild) return;
-  const store = getGuildStore(msg.guild.id);
-
-  if (args[0] === "channel") {
-    const channel = msg.mentions.channels.first();
-    if (!channel || !channel.isVoiceBased()) { await msg.reply({ embeds: [errorEmbed("Mentionne un salon vocal.")] }); return; }
-    store.voiceConfig.createChannelId = channel.id;
-    await dbSaveGuildConfig(msg.guild.id, store);
-    await msg.reply({ embeds: [successEmbed(`Salon de création de vocal: <#${channel.id}>`)] });
-    return;
-  }
-
-  if (args[0] === "panel") {
-    const channel = msg.mentions.channels.first();
-    if (!channel || !channel.isTextBased()) { await msg.reply({ embeds: [errorEmbed("Mentionne un salon texte pour le panel.")] }); return; }
-    store.voiceConfig.panelChannelId = channel.id;
-
-    const panelEmbed = new EmbedBuilder()
-      .setColor(0x3498db).setTitle("🎙️ Gestion de ta Vocal")
-      .setDescription("Utilise les sélecteurs ci-dessous pour gérer ta vocal temporaire.");
-
-    const menuAction = new StringSelectMenuBuilder()
-      .setCustomId("voice_action").setPlaceholder("⚙️ Actions...")
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("🔒 Rendre privée").setValue("make_private"),
-        new StringSelectMenuOptionBuilder().setLabel("🔓 Rendre publique").setValue("make_public"),
-      );
-
-    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menuAction);
-    const panelMsg = await (channel as any).send({ embeds: [panelEmbed], components: [row] });
-    store.voiceConfig.panelMessageId = panelMsg.id;
-    await dbSaveGuildConfig(msg.guild.id, store);
-    await msg.reply({ embeds: [successEmbed(`Panel vocal envoyé dans <#${channel.id}>`)] });
-    return;
-  }
-
-  const embed = new EmbedBuilder().setColor(0x3498db).setTitle("🎙️ Configuration des vocaux temporaires")
-    .setDescription(
-      "`.setvoice channel #vocal` — salon pour créer une vocal\n" +
-      "`.setvoice panel #salon-texte` — envoyer le panel de gestion\n\n" +
-      `**Salon de création:** ${store.voiceConfig.createChannelId ? `<#${store.voiceConfig.createChannelId}>` : "*non défini*"}\n` +
-      `**Panel:** ${store.voiceConfig.panelChannelId ? `<#${store.voiceConfig.panelChannelId}>` : "*non défini*"}`
-    ).setTimestamp();
-  await msg.reply({ embeds: [embed] });
-}
-
 export async function handleVoiceJoinCreate(voiceState: VoiceState): Promise<void> {
   if (!voiceState.guild || !voiceState.channelId) return;
   const store = getGuildStore(voiceState.guild.id);
@@ -159,99 +111,6 @@ export async function handleMove(msg: Message): Promise<void> {
   }
 }
 
-export async function handleAntiMove(msg: Message, args: string[]): Promise<void> {
-  if (!msg.guild) return;
-  const store = getGuildStore(msg.guild.id);
-
-  if (args[0] === "list") {
-    if (!(await requireWL(msg))) return;
-    const entries = Array.from(store.antiMoveList).map((id) => `<@${id}>`);
-    await msg.reply({ embeds: [listEmbed("🛡️ Liste Antimove", entries)] });
-    return;
-  }
-
-  if (!(await requireOwner(msg))) return;
-
-  if (args[0] === "del") {
-    const target = msg.mentions.members?.first();
-    if (!target) { await msg.reply({ embeds: [errorEmbed("Mentionne un membre.")] }); return; }
-    store.antiMoveList.delete(target.id);
-    await dbRemoveAntiMove(msg.guild.id, target.id);
-    await msg.reply({ embeds: [successEmbed(`**${target.user.tag}** retiré de la liste antimove.`)] });
-    return;
-  }
-
-  const target = msg.mentions.members?.first();
-  if (!target) { await msg.reply({ embeds: [errorEmbed("Usage: `.antimove @user` | `.antimove del @user` | `.antimove list`")] }); return; }
-  store.antiMoveList.add(target.id);
-  await dbAddAntiMove(msg.guild.id, target.id);
-  await msg.reply({ embeds: [successEmbed(`**${target.user.tag}** ajouté à la liste antimove.`)] });
-}
-
-export async function handleFollowUser(msg: Message, args: string[]): Promise<void> {
-  if (!msg.guild) return;
-  const store = getGuildStore(msg.guild.id);
-
-  if (args[0] === "list") {
-    if (!(await requireWL(msg))) return;
-    const entries = Array.from(store.followRequests.values())
-      .filter((r) => r.accepted)
-      .map((r) => `<@${r.followerId}> suit <@${r.targetId}>`);
-    await msg.reply({ embeds: [listEmbed("👣 Liste des follows", entries)] });
-    return;
-  }
-
-  if (!(await requireWL(msg))) return;
-  const target = msg.mentions.members?.first();
-  if (!target) { await msg.reply({ embeds: [errorEmbed("Mentionne un membre à suivre.")] }); return; }
-
-  const existing = store.followRequests.get(`${msg.author.id}_${target.id}`);
-  if (existing) {
-    store.followRequests.delete(`${msg.author.id}_${target.id}`);
-    await msg.reply({ embeds: [successEmbed(`Tu ne suis plus **${target.user.tag}**.`)] });
-    return;
-  }
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("follow_accept").setLabel("✅ Accepter").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("follow_decline").setLabel("❌ Refuser").setStyle(ButtonStyle.Danger)
-  );
-  const embed = new EmbedBuilder().setColor(0x3498db).setTitle("👣 Demande de suivi vocal")
-    .setDescription(`**${msg.author.tag}** souhaite te suivre dans les salons vocaux.\nTu as **1 minute** pour accepter ou refuser.`)
-    .setTimestamp();
-
-  try {
-    const dm = await target.user.send({ embeds: [embed], components: [row] });
-    store.followRequests.set(`${msg.author.id}_${target.id}`, { followerId: msg.author.id, targetId: target.id, accepted: undefined });
-    await msg.reply({ embeds: [infoEmbed(`Demande envoyée à **${target.user.tag}**. En attente de réponse...`)] });
-
-    const collector = dm.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000, filter: (i) => i.user.id === target.id });
-    collector.on("collect", async (interaction) => {
-      const entry = store.followRequests.get(`${msg.author.id}_${target.id}`);
-      if (!entry) return;
-      if (interaction.customId === "follow_accept") {
-        entry.accepted = true;
-        await interaction.update({ embeds: [successEmbed(`Tu as accepté d'être suivi par **${msg.author.tag}**.`)], components: [] });
-        await msg.channel.send({ embeds: [successEmbed(`**${target.user.tag}** a accepté. Tu le suivras dans les vocaux.`)] });
-      } else {
-        entry.accepted = false;
-        store.followRequests.delete(`${msg.author.id}_${target.id}`);
-        await interaction.update({ embeds: [infoEmbed(`Tu as refusé la demande de **${msg.author.tag}**.`)], components: [] });
-        await msg.channel.send({ embeds: [infoEmbed(`**${target.user.tag}** a refusé ta demande.`)] });
-      }
-    });
-    collector.on("end", (collected) => {
-      if (collected.size === 0) {
-        store.followRequests.delete(`${msg.author.id}_${target.id}`);
-        dm.edit({ components: [] }).catch(() => {});
-        msg.channel.send({ embeds: [infoEmbed(`Demande vers **${target.user.tag}** expirée.`)] }).catch(() => {});
-      }
-    });
-  } catch {
-    await msg.reply({ embeds: [errorEmbed(`Impossible d'envoyer un MP à **${target.user.tag}**. Ses DMs sont peut-être fermés.`)] });
-  }
-}
-
 export async function handleAntiDeco(msg: Message, args: string[]): Promise<void> {
   if (!(await requireOwner(msg))) return;
   if (!msg.guild) return;
@@ -280,18 +139,43 @@ export async function handlePv(msg: Message): Promise<void> {
   }
 }
 
+export async function handlePvList(msg: Message): Promise<void> {
+  if (!(await requireWL(msg))) return;
+  if (!msg.guild) return;
+  const store = getGuildStore(msg.guild.id);
+
+  const privateVoices = Array.from(store.tempVoices.values())
+    .filter((tv) => tv.isPrivate)
+    .map((tv) => {
+      const ch = msg.guild!.channels.cache.get(tv.channelId) as VoiceChannel | undefined;
+      const owner = msg.guild!.members.cache.get(tv.ownerId);
+      const members = ch ? ch.members.size : 0;
+      return ch
+        ? `🔒 **${ch.name}** — Proprio: <@${tv.ownerId}> — ${members} membre(s)`
+        : `🔒 \`${tv.channelId}\` *(introuvable)*`;
+    });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setTitle("🔒 Salons vocaux privés")
+    .setDescription(privateVoices.length > 0 ? privateVoices.join("\n") : "*Aucun salon vocal privé*")
+    .setTimestamp();
+
+  await msg.reply({ embeds: [embed] });
+}
+
 export async function handleAccess(msg: Message): Promise<void> {
   if (!(await requireWL(msg))) return;
   if (!msg.guild) return;
   const voiceChannel = msg.member?.voice.channel as VoiceChannel | null;
-  if (!voiceChannel) { await msg.reply({ embeds: [errorEmbed("Tu n'es pas en vocal.")] }); return; }
+  if (!voiceChannel) { await msg.reply("Tu n'es pas en vocal."); return; }
   const target = msg.mentions.members?.first();
-  if (!target) { await msg.reply({ embeds: [errorEmbed("Mentionne un membre.")] }); return; }
+  if (!target) { await msg.reply("Mentionne un membre."); return; }
   try {
     await voiceChannel.permissionOverwrites.edit(target, { Connect: true });
-    await msg.reply({ embeds: [successEmbed(`✅ **${target.user.tag}** peut rejoindre la vocal.`)] });
+    await msg.reply(`✅ <@${target.id}> peut rejoindre la vocal **${voiceChannel.name}**.`);
   } catch {
-    await msg.reply({ embeds: [errorEmbed("Impossible d'accorder l'accès.")] });
+    await msg.reply("Impossible d'accorder l'accès.");
   }
 }
 
@@ -326,4 +210,41 @@ export async function handleUnpvAll(msg: Message): Promise<void> {
     }
   }
   await msg.reply({ embeds: [successEmbed(`🔓 ${count} vocal(s) rendue(s) publique(s).`)] });
+}
+
+export async function handleWakeUp(msg: Message): Promise<void> {
+  if (!(await requireWL(msg))) return;
+  if (!msg.guild) return;
+
+  const target = msg.mentions.members?.first();
+  if (!target) { await msg.reply("**Mentionne un membre.**"); return; }
+  if (!target.voice.channel) { await msg.reply(`**${target.user.tag} n'est pas en vocal.**`); return; }
+
+  const originalChannel = target.voice.channel;
+
+  const publicVoiceChannels = Array.from(msg.guild.channels.cache.values()).filter(
+    (ch) =>
+      ch.type === ChannelType.GuildVoice &&
+      ch.permissionsFor(msg.guild!.roles.everyone)?.has(PermissionFlagsBits.Connect) &&
+      ch.id !== originalChannel.id
+  ) as VoiceChannel[];
+
+  if (publicVoiceChannels.length === 0) {
+    await msg.reply("**Aucun salon vocal public trouvé.**");
+    return;
+  }
+
+  await msg.reply(`🔔 **${target.user.tag}** va être déplacé dans ${publicVoiceChannels.length} salon(s) vocal(aux).`);
+
+  for (const ch of publicVoiceChannels.slice(0, 10)) {
+    try {
+      await target.voice.setChannel(ch);
+      await new Promise((r) => setTimeout(r, 1000));
+    } catch {}
+  }
+
+  // Return to original channel
+  try {
+    await target.voice.setChannel(originalChannel);
+  } catch {}
 }

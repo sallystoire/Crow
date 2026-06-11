@@ -33,7 +33,7 @@ export function startBot(): void {
 
   client.once("clientReady", async () => {
     logger.info({ tag: client.user?.tag }, "Discord bot connected");
-    client.user?.setActivity("Serveur | .help", { type: 3 });
+    client.user?.setActivity("Serveur | &help", { type: 3 });
 
     // Load all guilds from DB on startup
     for (const guild of client.guilds.cache.values()) {
@@ -63,18 +63,6 @@ export function startBot(): void {
       // User joined
       if (!oldState.channelId && newState.channelId) {
         await handleVoiceJoinCreate(newState);
-
-        // Follow user
-        if (newState.guild && newState.member) {
-          const store = getGuildStore(newState.guild.id);
-          for (const [, follow] of store.followRequests) {
-            if (!follow.accepted || follow.targetId !== newState.member.id) continue;
-            const follower = newState.guild.members.cache.get(follow.followerId);
-            if (follower && follower.voice.channel?.id !== newState.channelId) {
-              await follower.voice.setChannel(newState.channelId).catch(() => {});
-            }
-          }
-        }
       }
 
       // User left
@@ -112,14 +100,20 @@ export function startBot(): void {
 
   client.on("guildMemberUpdate", async (oldMember: GuildMember | any, newMember: GuildMember) => {
     if (!newMember.guild) return;
-    const store = getGuildStore(newMember.guild.id);
-    const addedRoles = newMember.roles.cache.filter((r) => !oldMember.roles.cache.has(r.id));
-    for (const [roleId] of addedRoles) {
-      const channelId = store.alertRoles.get(roleId);
-      if (!channelId) continue;
-      const channel = newMember.guild.channels.cache.get(channelId);
-      if (!channel?.isTextBased()) continue;
-      await (channel as any).send(`⚠️ <@&${roleId}> attribué à **${newMember.user.tag}** \`(${newMember.id})\``).catch(() => {});
+    try {
+      const store = getGuildStore(newMember.guild.id);
+      const addedRoles = newMember.roles.cache.filter((r: any) => !oldMember.roles.cache.has(r.id));
+      for (const [roleId] of addedRoles) {
+        const alert = store.alertRoles.get(roleId);
+        if (!alert) continue;
+        const channel = newMember.guild.channels.cache.get(alert.channelId);
+        if (!channel?.isTextBased()) continue;
+        await (channel as any).send(
+          `<@&${alert.mentionRoleId}> ⚠️ <@&${roleId}> attribué à **${newMember.user.tag}** \`(${newMember.id})\``
+        ).catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err }, "Error handling guildMemberUpdate");
     }
   });
 

@@ -1,0 +1,39 @@
+
+& Est le nouveau préfixe 
+Pour les bannissement le bot après avoir fait ban, bl, unban, unbl ca me met impossible de faire alors que la commande s’applique. Et je voudrai que ça soit en message en gras en réponse à l’utilisateur.
+
+Le hideme ne fonctionne pas et je veux que lorsque qu’on fait la commande le bot répond au message: @user vous êtes caché des snipers.
+
+La commande addsecure ne renvoi rien, je veux qu’elle renvoi un message: en répondant à l’utilisateur: Vous avez sécurisé le rôle: @role
+
+La commande delsecure doit renvoyer: Vous avez supprimé la sécurité du rôle: @role
+
+La commande securelist doit renvoyer la liste de tout les rôles secure.
+
+La commande derank doit renvoyer un message en réponse pas embed: « @user a été derank »
+
+Quand je fait editpack je veux un embed qui me met un sélecteur et je peux créer un pack en gros indiquer un groupe de rôle, modifier un pack existant, supprimer un pack existant. 
+
+Quand je fais editrole @user ça me met ajouter et retirer des rôles qu’il a déjà. Moi je veux pouvoir naviguer les différents pack et lui appliquer ou non le pack.
+
+Supprimer .setvoice, .antimove, .followuser, antilink, allowlink
+
+Ajouter .pvlist qui renvoi les salons vocaux et qui ont privé en liste embed
+
+.access - répond au user en message pas embed. 
+
+Ajouter .ownerlist .wlist voir la list de ces deux listes en embed
+
+Faut que .owner add, .owner del, wl add, wl dsl, renvoi un message en réponse à l’user que la personne a été ajouté. 
+
+Pour .alertroles le bot doit mentionner le deuxième rôle. Ex .alertroles @star @poisson le bot doit mentionner @poisson car le rôle @star a été ajouté
+
+.clearban et .blclear doivent aussi renvoyer un message
+
+Pour le .setupmute je veux embed avec sélecteur et le modifications s’appliquent sur l’embed. En sélecteur je veux: temps max, salon sanction, rôle mute, niveaux et quand on clique niveaux: ça met quel(les) sont les rôles de niveau 1 ? L’utilisateur réponds. Quelle(s) sont/est la permission ajouté (&tempmute, &unmute) et voilà après c’est marqué dans l’embed Niveau 1: rôle - permissions , et je peux ajouter d’autres niveaux aussi. Et les gens du même niveau ne peuvent pas se mute. Dans le sélecteur met Créer une raison, et le bot envoi par message: «Quelle est la raison ? » et user répond puis « Quelle est le temps en minute ? (Ex 2m, 20m..) » et user répond et après ça met la raison dans l’embed. Et comme ça quand je .tempmute j’ai la raison
+
+Quand je .tempmute @user ça me met impossible alors que ça me met le rôle muet. D’ailleurs j’aimerai qu’il crée un rôle muet. et qu’en je .tempmute ça me met un embed et un sélecteur avec les raison de mute défini pendant le setupmute et il ajuste à cliquer.
+
+Ajouté la commande .wakeup @user - en gros ça déplace l’utilisateur dans tout les salon vocal publiques du serveur. 
+
+Ajoute la commande .ping @user - en gros ça mentionne l’utilisateur dans tout les salons chats publique du serveur. 

@@ -1,13 +1,9 @@
-import { Message, TextChannel, EmbedBuilder } from "discord.js";
-import { requireOwner, requireWL, hasCustomPerm } from "../../utils/permissions.js";
+import { Message, TextChannel, ChannelType } from "discord.js";
+import { requireOwner, requireWL } from "../../utils/permissions.js";
 import { successEmbed, errorEmbed } from "../../utils/embeds.js";
 
 export async function handleClear(msg: Message, args: string[]): Promise<void> {
   if (!msg.guild) return;
-
-  const canClear =
-    hasCustomPerm(msg.member!, "clear") ||
-    (await (async () => true)());
 
   const mentionedUser = msg.mentions.users.first();
   const channel = msg.channel as TextChannel;
@@ -55,7 +51,7 @@ export async function handleEmoji(msg: Message, args: string[]): Promise<void> {
   const emojiName = args[1];
 
   if (!emojiArg || !emojiName) {
-    await msg.reply({ embeds: [errorEmbed("Format: `.emoji <emoji ou URL> <nom>`")] });
+    await msg.reply({ embeds: [errorEmbed("Format: `&emoji <emoji ou URL> <nom>`")] });
     return;
   }
 
@@ -79,4 +75,29 @@ export async function handleEmoji(msg: Message, args: string[]): Promise<void> {
   } catch {
     await msg.reply({ embeds: [errorEmbed("Impossible de créer l'emoji (limite atteinte ou permissions insuffisantes).")] });
   }
+}
+
+export async function handlePing(msg: Message): Promise<void> {
+  if (!(await requireOwner(msg))) return;
+  if (!msg.guild) return;
+
+  const target = msg.mentions.users.first();
+  if (!target) { await msg.reply("**Mentionne un utilisateur.**"); return; }
+
+  const textChannels = msg.guild.channels.cache.filter(
+    (ch) =>
+      ch.type === ChannelType.GuildText &&
+      ch.permissionsFor(msg.guild!.roles.everyone)?.has("ViewChannel") &&
+      ch.permissionsFor(msg.guild!.roles.everyone)?.has("SendMessages")
+  );
+
+  let sent = 0;
+  for (const [, ch] of textChannels) {
+    try {
+      await (ch as TextChannel).send(`<@${target.id}>`);
+      sent++;
+    } catch {}
+  }
+
+  await msg.reply(`**<@${target.id}> a été mentionné dans ${sent} salon(s).**`);
 }

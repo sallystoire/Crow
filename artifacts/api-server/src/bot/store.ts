@@ -35,6 +35,7 @@ export interface MuteConfig {
   maxDurationMinutes: number;
   muteRoleId?: string;
   levels: MuteLevel[];
+  muteReasons: string[];
 }
 
 export interface VoiceChannelConfig {
@@ -78,6 +79,11 @@ export interface SnipedMessage {
   deletedAt: Date;
 }
 
+export interface AlertRoleEntry {
+  channelId: string;
+  mentionRoleId: string;
+}
+
 export interface GuildStore {
   ownerList: Set<string>;
   wlList: Set<string>;
@@ -101,7 +107,7 @@ export interface GuildStore {
   snipedMessages: SnipedMessage[];
   userSnipedMessages: Map<string, SnipedMessage[]>;
   customPerms: Map<string, Set<string>>;
-  alertRoles: Map<string, string>;
+  alertRoles: Map<string, AlertRoleEntry>;
 }
 
 const stores = new Map<string, GuildStore>();
@@ -114,7 +120,7 @@ export function getGuildStore(guildId: string): GuildStore {
       banList: new Map(),
       blacklist: new Map(),
       muteList: new Map(),
-      muteConfig: { maxDurationMinutes: 60, levels: [] },
+      muteConfig: { maxDurationMinutes: 60, levels: [], muteReasons: [] },
       secureroles: new Set(),
       wlSecure: new Set(),
       editPacks: [],
